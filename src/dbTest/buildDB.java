@@ -1,5 +1,7 @@
 package dbTest;
 
+import java.io.File;
+import java.io.IOException;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
@@ -7,6 +9,7 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import nl.knaw.dans.common.dbflib.*;
 
 public class buildDB {
     private static final String hist = "base_historic";
@@ -119,47 +122,40 @@ public class buildDB {
             Logger.getLogger(buildDB.class.getName()).log(Level.SEVERE, null, ex);
         }
     }
-    public static void main(String[] args) throws ClassNotFoundException, SQLException {
-        Connection cInDb3 = null, cInDbf = null, cOutput = null;
-        Statement inStDb3 = null, inStDbf = null, outStmt =  null;
+    public static void main(String[] args) throws ClassNotFoundException, SQLException, IOException, CorruptedTableException {
+        Connection cInDb3 = null, cOutput = null;
+        Statement inStmt = null, outStmt =  null;
+        Table table = null;
         int index;
         try {
             Class.forName("org.sqlite.JDBC");
             
             cInDb3 = DriverManager.getConnection("jdbc:sqlite:" + inDB + ".db3");
             cInDb3.setAutoCommit(false);
-            inStDb3 = cInDb3.createStatement();
+            inStmt = cInDb3.createStatement();
             System.out.println("\nOpened " + inDB + " database successfully");
-        }
-        catch(SQLException e){
-        }
-        
-        try {
+            
             cOutput = DriverManager.getConnection("jdbc:sqlite:" + hist + ".db3");
             cOutput.setAutoCommit(false);
             outStmt = cOutput.createStatement();
             System.out.println("\nConnected established to " + hist + " database successfully");
-        } catch (SQLException ex) {
-            Logger.getLogger(buildDB.class.getName()).log(Level.SEVERE, null, ex);
-        }
-                       
-        try {
-            Class.forName("sun.jdbc.odbc.JdbcOdbcDriver");
-            String s = "jdbc:odbc:DRIVER={Microsoft dBase Driver(*.dbf)}; DBQ = C:\\Users\\radfordd\\Documents\\Projects\\STC\\Data\\Spatial;";
-            cInDbf = DriverManager.getConnection(s);
-            cInDbf.setAutoCommit(false);
-            inStDbf = cInDbf.createStatement();
+            
+            table = new Table(new File("C:\\Users\\radfordd\\Documents\\NetBeansProjects\\Data\\Spatial\\farm2010.dbf"));
+            table.open(IfNonExistent.ERROR);
             System.out.println("\nOpened " + inDBF + " database successfully");
-        } catch (SQLException ex) {
-            Logger.getLogger(buildDB.class.getName()).log(Level.SEVERE, null, ex);
+            
+            buildTables(inStmt, outStmt);
+            System.out.println("\n" + hist + " database created successfully");
+            
+            fillTables(outStmt);
         }
-        buildTables(inStDb3, outStmt);
-        System.out.println("\n" + hist + " database created successfully");
-            
-        fillTables(outStmt);
-            
-        cOutput.commit();
-        cInDb3.close();
-        cOutput.close();
+        catch(SQLException e) {
+            System.out.println(e);
+        }
+        finally {
+            table.close();
+            cOutput.commit();
+            cOutput.close();
+        }
     }
 }

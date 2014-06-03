@@ -215,30 +215,10 @@ pip-log.txt
 .mr.developer.cfg
 
 #Shapefiles
-.shp
-.dbf
-.prj
-.sbx
-.sbn
-.shx
-.mwsr
-.mwysmb
+/Data/Spatial/*
+!/Data/Spatial/spatial.db3
 
-#SWAT Files
-.mgt
-.dat
-.hru
-.lwq
-.pnd
-.rte
-.sub
-.swq
-.wgn
-.wus
-.gw
-.ops
-.sep
-.sol
-.chm
-.res
-.dam
+#txtinout directory
+
+/Data/txtinout/*
+
