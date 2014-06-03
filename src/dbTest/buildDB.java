@@ -24,6 +24,7 @@ public class buildDB {
                                                "clay_liner", "plastic_ln", "wire_fence", "distance", "trenching", "pond_yrs", "annual_cost",
                                                "maintenance", "total_cost", "embankment", "life_time", "tillage"};
     private static final String[] types = {"int", "real"};
+    private static final String[] dbf_tbls = {"small_dam", "cattle_yard", "grazing", "land2010_by_land_id", "farm2010"};
     private static void buildTables(Statement in, Statement out) {
         try {
             int i = 1, t = 1;
@@ -142,7 +143,7 @@ public class buildDB {
             outStmt = cOutput.createStatement();
             System.out.println("\nConnected established to " + hist + " database successfully");
             
-            table = new Table(new File("C:\\Users\\radfordd\\Documents\\NetBeansProjects\\DataBaseTestingProject\\Data\\Spatial\\farm2010.dbf"));
+            table = new Table(new File("C:\\Users\\radfordd\\Documents\\NetBeansProjects\\DataBaseTestingProject\\Data\\Spatial\\" + dbf_tbls[0] + ".dbf"));
             table.open(IfNonExistent.ERROR);
             System.out.println("\nOpened " + inDBF + " database successfully");
             
@@ -154,7 +155,7 @@ public class buildDB {
             while(iter.hasNext()) {
                 Record rec = iter.next();
                 
-                Number nv = rec.getNumberValue("FARM_HA");
+                Number nv = rec.getNumberValue("ID");
                 
                 if(nv == null) {
                     System.out.println("EMPTY");
@@ -168,7 +169,63 @@ public class buildDB {
                 }
             }
             
+            float num = (float) (4.87e-7 * Math.pow(2682.0, 3.0) - 4.24e-3 * Math.pow(2682.0, 2.0) + 1.28e1 * 2682 + 6.71e3);
+            System.out.println(num / 50);
             //fillTables(outStmt);
+            
+            
+            /** HOLDING POND COST / Lifetime (50)
+                            double sqrtCattles = Math.Sqrt(Cattles);
+                double temp3 = 2.232 * Cattles + 11.338 * sqrtCattles;
+                double temp = 3.72 * Cattles + _trenching * 7.94 * sqrtCattles + 0.844 * Distance +
+                    _clay_liner * temp3;
+
+                double temp2 = (0.5 * 9.5 + 7.47) * temp3;
+
+                double max = 1.38e-10 * Math.Pow(temp,2.0) 
+                    - 5.027e-5 * temp 
+                    + 6.736 + _clay_liner * temp2
+                    + _plastic_liner / 0.7 * temp2
+                    + _wire_fence * (189.0 + Math.Sqrt(820.0 * Cattles))
+                    + 10000.0;
+                max *= 1.1483;
+
+                temp3 = 1.512 * Cattles + 9.332 * sqrtCattles;
+                temp = 2.52 * Cattles + _trenching * 6.54 * sqrtCattles + 0.844 * Distance +
+                    _clay_liner * temp3;
+                temp2 = (0.5 * 9.5 + 7.47) * temp3;
+                double min = 1.38e-10 * Math.Pow(temp, 2.0)
+                    - 5.027e-5 * temp
+                    + 6.736 + _clay_liner * temp2
+                    + _plastic_liner / 0.7 * temp2
+                    + _wire_fence * (189.0 + Math.Sqrt(556.0 * Cattles))
+                    + 10000.0;
+                min *= 1.1483;
+
+                return min / 2.0 + max / 2.0; 
+                */
+            
+            /** HOLDING POND MAINTENANCE COST
+             *                 double temp = 0.03048 * Math.Pow(Math.Sqrt(1.68 * Cattles) - 6,2.0);
+                double min = 1.38e-10 * Math.Pow(temp, 2.0)
+                    - 5.027e-5 * temp
+                    + 6.737
+                    + _wire_fence * (24.48 + 3.05 * Math.Sqrt(Cattles))
+                    + 1.25 * Cattles;
+
+                temp = 0.03048 * Math.Pow(Math.Sqrt(2.48 * Cattles) - 6, 2.0);
+                double max = 1.38e-10 * Math.Pow(temp, 2.0)
+                    - 5.027e-5 * temp
+                    + 6.737
+                    + _wire_fence * (24.48 + 3.71 * Math.Sqrt(Cattles))
+                    + 1.85 * Cattles;
+
+                return min / 2.0 + max / 2.0; 
+                */
+            // HOLDING POND TOTALCOST = ANNUAL + MAINTENANCE
+            // HOLDING_ECON COST == TOTALCOST
+            
+            // GRAZING COST = UNIT COST * AREA from DBF
         }
         catch(SQLException e) {
             System.out.println(e);
