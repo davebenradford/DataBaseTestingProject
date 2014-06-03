@@ -214,11 +214,10 @@ pip-log.txt
 #Mr Developer
 .mr.developer.cfg
 
-#Shapefiles
+#STC Directories
 /Data/Spatial/*
-!/Data/Spatial/spatial.db3
-
-#txtinout directory
-
 /Data/txtinout/*
+!/Data/Spatial/spatial.db3
+!/Data/Spatial/*.dbf
+
 

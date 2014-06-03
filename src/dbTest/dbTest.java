@@ -13,8 +13,8 @@ public class dbTest {
     
     public static void main(String args[]) throws ClassNotFoundException, SQLException {
         
-        Connection cInput, cOutput;
-        Statement inStmt, outStmt;
+        Connection cInput = null, cOutput = null;
+        Statement inStmt = null, outStmt = null;
         ArrayList<String> tables, headers, types;
         int index;
         try {
@@ -210,12 +210,14 @@ public class dbTest {
                 tblMissing = true;
             }
             cOutput.commit();
+        } catch (SQLException e) {
+            System.err.println(e.getClass().getName() + ": " + e.getMessage());
+        }
+        finally {
             inStmt.close();            
             outStmt.close();
             cInput.close();
             cOutput.close();
-        } catch (SQLException e) {
-            System.err.println(e.getClass().getName() + ": " + e.getMessage());
         }
         System.out.println("\nOperation done successfully");
     }

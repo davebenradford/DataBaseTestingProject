@@ -7,6 +7,7 @@ import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.Iterator;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import nl.knaw.dans.common.dbflib.*;
@@ -126,6 +127,7 @@ public class buildDB {
         Connection cInDb3 = null, cOutput = null;
         Statement inStmt = null, outStmt =  null;
         Table table = null;
+        boolean isDouble = false;
         int index;
         try {
             Class.forName("org.sqlite.JDBC");
@@ -140,14 +142,33 @@ public class buildDB {
             outStmt = cOutput.createStatement();
             System.out.println("\nConnected established to " + hist + " database successfully");
             
-            table = new Table(new File("C:\\Users\\radfordd\\Documents\\NetBeansProjects\\Data\\Spatial\\farm2010.dbf"));
+            table = new Table(new File("C:\\Users\\radfordd\\Documents\\NetBeansProjects\\DataBaseTestingProject\\Data\\Spatial\\farm2010.dbf"));
             table.open(IfNonExistent.ERROR);
             System.out.println("\nOpened " + inDBF + " database successfully");
             
             buildTables(inStmt, outStmt);
             System.out.println("\n" + hist + " database created successfully");
             
-            fillTables(outStmt);
+            Iterator<Record> iter = table.recordIterator();
+            
+            while(iter.hasNext()) {
+                Record rec = iter.next();
+                
+                Number nv = rec.getNumberValue("FARM_HA");
+                
+                if(nv == null) {
+                    System.out.println("EMPTY");
+                }
+                else if(nv.doubleValue() % 1 == 0 && !isDouble) {
+                    System.out.println(nv + ": TYPE = INT");
+                }
+                else {
+                    isDouble = true;
+                    System.out.println(nv + ": TYPE = DOUBLE");
+                }
+            }
+            
+            //fillTables(outStmt);
         }
         catch(SQLException e) {
             System.out.println(e);
