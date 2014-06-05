@@ -25,6 +25,7 @@ public class buildDB {
                                                "maintenance", "total_cost", "embankment", "life_time", "tillage"};
     private static final String[] types = {"int", "real"};
     private static final String[] dbf_tbls = {"small_dam", "cattle_yard", "grazing", "land2010_by_land_id", "farm2010"};
+    
     private static void buildTables(Statement in, Statement out) {
         try {
             int i = 1, t = 1;
@@ -89,41 +90,65 @@ public class buildDB {
                     out.executeUpdate(sql);
                 }
             }
-            /**
-            s.executeUpdate("CREATE TABLE IF NOT EXISTS crop_economic_fields(id int, year int, yield real, revenue real, cost real, net_return real);");        // 1
-            s.executeUpdate("CREATE TABLE IF NOT EXISTS crop_economic_subbasins(id int, year int, yield real, revenue real, cost real, net_return real);");     // 1
-            s.executeUpdate("CREATE TABLE IF NOT EXISTS forage(id int);");                                                                                      // 2
-            s.executeUpdate("CREATE TABLE IF NOT EXISTS forage_hru(id int);");                                                                                  // 2
-            s.executeUpdate("CREATE TABLE IF NOT EXISTS tillage(id int);");                                                                                     // 2
-            s.executeUpdate("CREATE TABLE IF NOT EXISTS grazing_hrus(id int);");                                                                                // 2
-            
-            s.executeUpdate("CREATE TABLE IF NOT EXISTS holding_ponds_economic(id int, year int, cost real);");                                                 // 3
-            s.executeUpdate("CREATE TABLE IF NOT EXISTS grazing_economic(id int, year int, cost real);");                                                       // 3
-            s.executeUpdate("CREATE TABLE IF NOT EXISTS grazing_economic_subbasins(id int, year int, cost real);");                                             // 3
-            s.executeUpdate("CREATE TABLE IF NOT EXISTS small_dams_economic(id int, year int, cost real);");                                                    // 3
-            
-            s.executeUpdate("CREATE TABLE IF NOT EXISTS grazing(id int, grazing_ha real, unit_cost real, cost real);");                                         // 4
-            s.executeUpdate("CREATE TABLE IF NOT EXISTS holding_ponds(id int, hru int, cattle real, clay_liner int, plastic_ln int, wire_fence int, "
-                          + "distance real, trenching real, pond_yrs int, cost real, annual_cost real, maintenance real, total_cost real);");                   // 5
-            
-            s.executeUpdate("CREATE TABLE IF NOT EXISTS small_dams(id int, embankment real, life_time int);");                                                  // 6
-            
-            s.executeUpdate("CREATE TABLE IF NOT EXISTS tillage_hrus(id int, tillage int);");                                                                   // 7
-            */
         } catch (SQLException ex) {
             Logger.getLogger(buildDB.class.getName()).log(Level.SEVERE, null, ex);
         }
     }
-    private static void fillTables(Statement out) {
+    
+    private static void fillCropEconFields(Statement in, Statement out, String tbl) {
         try {
-            for(String tbl: tbl_names){
-                ResultSet rs = out.executeQuery("SELECT * FROM " + tbl + ";");
-                System.out.println("\n" + tbl);
+            int typeInt = 0, typeDbl = 0;
+            ResultSet inRs = in.executeQuery("SELECT * FROM " + tbl + ";");
+            ResultSet outRs = out.executeQuery("SELECT * FROM " + tbl_names[1] + ";");
+            String[] col_names = new String[inRs.getMetaData().getColumnCount()];
+            String[] col_pos = new String[inRs.getMetaData().getColumnCount()];
+            for(int i = 1; i <= inRs.getMetaData().getColumnCount(); i++) {
+                col_names[i - 1] = inRs.getMetaData().getColumnName(i);
+                if(inRs.getMetaData().getColumnType(i) == 4) {
+                    typeInt++;
+                    col_pos[i - 1] = "int";
+                }
+                else {
+                    typeDbl++;
+                    col_pos[i - 1] = "dbl";
+                }
+            }
+            String ids = "";
+            String[] out_cols = new String[outRs.getMetaData().getColumnCount()];      
+            for(int i = 1; i <= outRs.getMetaData().getColumnCount(); i++) {
+                out_cols[i - 1] = outRs.getMetaData().getColumnName(i);
+                if(i == outRs.getMetaData().getColumnCount()) {
+                    ids += out_cols[i - 1] + ") ";
+                }
+                else {
+                    ids += out_cols[i - 1] + ", ";
+                }
+            }
+            int x = 0;
+            String[] arrWrite = new String[inRs.getMetaData().getColumnCount()];
+            while(inRs.next()) {
+                String sql = "INSERT INTO " + tbl_names[1] + "(" + ids + "VALUES(";
+                for(int i = 0; i < inRs.getMetaData().getColumnCount(); i++) {
+                    if(col_pos[i].equals("int")) {
+                        sql += inRs.getInt(col_names[i]);
+                    }
+                    else {
+                        sql += inRs.getDouble(col_names[i]);
+                    }
+                    if(i == (inRs.getMetaData().getColumnCount() - 1)) {
+                        sql += ");";
+                    }
+                    else {
+                        sql += ", ";
+                    }
+                }
+                out.executeUpdate(sql);
             }
         } catch (SQLException ex) {
             Logger.getLogger(buildDB.class.getName()).log(Level.SEVERE, null, ex);
         }
     }
+    
     public static void main(String[] args) throws ClassNotFoundException, SQLException, IOException, CorruptedTableException {
         Connection cInDb3 = null, cOutput = null;
         Statement inStmt = null, outStmt =  null;
@@ -149,29 +174,51 @@ public class buildDB {
             
             buildTables(inStmt, outStmt);
             System.out.println("\n" + hist + " database created successfully");
-            
+            /**
             Iterator<Record> iter = table.recordIterator();
-            
-            while(iter.hasNext()) {
+            int i = 0;
+            while(i < 26) {
+                String s1 = "Embankment";
+                String s2 = "LifeTime";
                 Record rec = iter.next();
+                double num = 0;
+                Number n1 = rec.getNumberValue(s1);
+                Number n2 = rec.getNumberValue(s2);
                 
-                Number nv = rec.getNumberValue("ID");
-                
-                if(nv == null) {
+                if(n1 == null) {
                     System.out.println("EMPTY");
                 }
-                else if(nv.doubleValue() % 1 == 0 && !isDouble) {
-                    System.out.println(nv + ": TYPE = INT");
+                else if(n1.doubleValue() % 1 == 0 && !isDouble) {
+                    System.out.println(n1.intValue() + ": TYPE = INT");
+                    num = (4.87e-7 * Math.pow(n1.intValue(), 3.0) - 4.24e-3 * Math.pow(n1.intValue(), 2.0) + 1.28e1 * 2682 + 6.71e3);
+                    System.out.printf("%.2f", num / 50);
+                    System.out.println();
                 }
                 else {
                     isDouble = true;
-                    System.out.println(nv + ": TYPE = DOUBLE");
+                    System.out.println(n1 + ": TYPE = DOUBLE");
                 }
+                if(n2 == null) {
+                    System.out.println("EMPTY");
+                }
+                else if(n2.doubleValue() % 1 == 0 && !isDouble) {
+                    System.out.println(n2.intValue() + ": TYPE = INT");
+                    // num = (4.87e-7 * Math.pow(n2.intValue(), 3.0) - 4.24e-3 * Math.pow(n2.intValue(), 2.0) + 1.28e1 * 2682 + 6.71e3);
+                    // System.out.printf("%.2f", num / 50);
+                    // System.out.println(n2);
+                }
+                else {
+                    isDouble = true;
+                    System.out.println(n2 + ": TYPE = DOUBLE");
+                }
+                i++;
             }
             
-            float num = (float) (4.87e-7 * Math.pow(2682.0, 3.0) - 4.24e-3 * Math.pow(2682.0, 2.0) + 1.28e1 * 2682 + 6.71e3);
-            System.out.println(num / 50);
-            //fillTables(outStmt);
+            //float num = (float) (4.87e-7 * Math.pow(nv.intValue(), 3.0) - 4.24e-3 * Math.pow(nv.intValue, 2.0) + 1.28e1 * 2682 + 6.71e3);
+            //System.out.println(num / 50);
+            */
+            String tbl = "yield_historic";
+            fillCropEconFields(inStmt, outStmt, tbl);
             
             
             /** HOLDING POND COST / Lifetime (50)
