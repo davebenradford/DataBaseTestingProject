@@ -26,6 +26,12 @@ public class buildDB {
     private static final String[] types = {"int", "real"};
     private static final String[] dbf_tbls = {"small_dam", "cattle_yard", "grazing", "land2010_by_land_id", "farm2010"};
     
+    /**
+     * 
+     * @param in: Input Statement Call. This contains the Connection to the Input SQLite3 DB file.
+     * @param out: Output Statement Call. This contains the Connection to the Output SQLite3 DB file.  
+     */
+    
     private static void buildTables(Statement in, Statement out) {
         try {
             int i = 1, t = 1;
@@ -95,47 +101,115 @@ public class buildDB {
         }
     }
     
+    /**
+     * 
+     * @param in: Input Statement Call. This contains the Connection to the Input SQLite3 DB file.
+     *            For all subsequent fillTableX functions, in refers to the Input connection. Any
+     *            variables having the prefix 'in' are used in relation to values taken from the input tables
+     *            via the input DB connection. 
+     * @param out: Output Statement Call. This contains the Connection to the Output SQLite3 DB file.
+     *             For all subsequent fillTableX functions, in refers to the Output connection. Any
+     *             variables having the prefix 'out' are used in relation to values taken from/written to the output table
+     *             via the output DB connection. 
+     * @param tbl: Name of the Input Table from the SQLite3 DB.  
+     */
+    
     private static void fillCropEconFields(Statement in, Statement out, String tbl) {
         try {
-            int typeInt = 0, typeDbl = 0;
             ResultSet inRs = in.executeQuery("SELECT * FROM " + tbl + ";");
             ResultSet outRs = out.executeQuery("SELECT * FROM " + tbl_names[1] + ";");
-            String[] col_names = new String[inRs.getMetaData().getColumnCount()];
-            String[] col_pos = new String[inRs.getMetaData().getColumnCount()];
+            NameTypePair[] ntp = getInNamesAndTypes(inRs);
+            /*            String[] inColumnNames = new String[inRs.getMetaData().getColumnCount()];
+            String[] inColumnPos = new String[inRs.getMetaData().getColumnCount()];
             for(int i = 1; i <= inRs.getMetaData().getColumnCount(); i++) {
-                col_names[i - 1] = inRs.getMetaData().getColumnName(i);
-                if(inRs.getMetaData().getColumnType(i) == 4) {
-                    typeInt++;
-                    col_pos[i - 1] = "int";
+            inColumnNames[i - 1] = inRs.getMetaData().getColumnName(i);
+            if(inRs.getMetaData().getColumnType(i) == 4) {
+            inColumnPos[i - 1] = "int";
+            }
+            else {
+            inColumnPos[i - 1] = "dbl";
+            }
+            }*/
+            String outColumnNames = loadOutputColumnNames(outRs);
+            setOutputValues(inRs, ntp, outColumnNames, out);
+        } catch (SQLException e) {
+            Logger.getLogger(buildDB.class.getName()).log(Level.SEVERE, null, e);
+        }
+    }
+    
+    private static void fillCropEconFarm(Statement in, Statement out, String tblA, String tblB){
+        try {
+            ResultSet inRsFrm = in.executeQuery("SELECT DISTINCT farm FROM " + tblB + "WHERE farm > 0;");
+            ResultSet inRsFld = in.executeQuery("SELECT * FROM " + tblA + ";");
+            ResultSet outRs = out.executeQuery("SELECT * FROM " + tbl_names[0] + ";");
+            String[] inColumnNames = new String[inRsFld.getMetaData().getColumnCount()];
+            String[] inColumnPos = new String[inRsFld.getMetaData().getColumnCount()];
+            inColumnNames[0] = inRsFrm.getMetaData().getColumnName(2);
+            inColumnPos[0] = "int";
+            for(int i = 2; i <= inRsFld.getMetaData().getColumnCount(); i++) {
+                inColumnNames[i - 1] = inRsFld.getMetaData().getColumnName(i);
+                if(inRsFld.getMetaData().getColumnType(i) == 4) {
+                    inColumnPos[i - 1] = "int";
                 }
                 else {
-                    typeDbl++;
-                    col_pos[i - 1] = "dbl";
+                    inColumnPos[i - 1] = "dbl";
                 }
             }
-            String ids = "";
-            String[] out_cols = new String[outRs.getMetaData().getColumnCount()];      
-            for(int i = 1; i <= outRs.getMetaData().getColumnCount(); i++) {
-                out_cols[i - 1] = outRs.getMetaData().getColumnName(i);
-                if(i == outRs.getMetaData().getColumnCount()) {
-                    ids += out_cols[i - 1] + ") ";
+        } catch(SQLException e) {
+            Logger.getLogger(buildDB.class.getName()).log(Level.SEVERE, null, e);
+        }
+    }
+    
+    private static NameTypePair[] getInNamesAndTypes(ResultSet iRs) {
+        NameTypePair[] ntp = null;
+        try {
+            ntp = new NameTypePair[iRs.getMetaData().getColumnCount()];
+            //String[] inNames = new String[iRs.getMetaData().getColumnCount()];
+            //String[] inTypes = new String[iRs.getMetaData().getColumnCount()];
+            for (int i = 1; i <= iRs.getMetaData().getColumnCount(); i++) {
+                if (iRs.getMetaData().getColumnType(i) == 4) {
+                    ntp[i - 1] = new NameTypePair(iRs.getMetaData().getColumnName(i), 1);
+                } else {
+                    ntp[i - 1] = new NameTypePair(iRs.getMetaData().getColumnName(i), 0);
+                }
+            }
+        } catch (SQLException e) {
+            Logger.getLogger(buildDB.class.getName()).log(Level.SEVERE, null, e);
+        }
+        return ntp;
+    }
+    
+    private static String loadOutputColumnNames(ResultSet oRs) {
+        String outColumnNames = "";
+        try {
+            String[] outColumnNamesArray = new String[oRs.getMetaData().getColumnCount()];      
+            for(int i = 1; i <= oRs.getMetaData().getColumnCount(); i++) {
+                outColumnNamesArray[i - 1] = oRs.getMetaData().getColumnName(i);
+                if(i == oRs.getMetaData().getColumnCount()) {
+                    outColumnNames += outColumnNamesArray[i - 1] + ") ";
                 }
                 else {
-                    ids += out_cols[i - 1] + ", ";
+                    outColumnNames += outColumnNamesArray[i - 1] + ", ";
                 }
             }
-            int x = 0;
-            String[] arrWrite = new String[inRs.getMetaData().getColumnCount()];
-            while(inRs.next()) {
-                String sql = "INSERT INTO " + tbl_names[1] + "(" + ids + "VALUES(";
-                for(int i = 0; i < inRs.getMetaData().getColumnCount(); i++) {
-                    if(col_pos[i].equals("int")) {
-                        sql += inRs.getInt(col_names[i]);
+        } catch (SQLException e){
+            Logger.getLogger(buildDB.class.getName()).log(Level.SEVERE, null, e);
+        }
+        return outColumnNames;
+    }
+    
+    private static void setOutputValues(ResultSet iRs, NameTypePair[] ntp, String outCols, Statement out) {
+        try {
+            while(iRs.next()) {
+                String sql = "INSERT INTO " + tbl_names[1] + "(" + outCols + "VALUES(";
+                for(int i = 0; i < iRs.getMetaData().getColumnCount(); i++) {
+                    if(ntp[i].getPairType() == 1) {
+                        sql += iRs.getInt(ntp[i].getPairName());
                     }
                     else {
-                        sql += inRs.getDouble(col_names[i]);
+                        sql += iRs.getDouble(ntp[i].getPairName());
                     }
-                    if(i == (inRs.getMetaData().getColumnCount() - 1)) {
+                    if(i == (iRs.getMetaData().getColumnCount() - 1)) {
                         sql += ");";
                     }
                     else {
@@ -144,8 +218,8 @@ public class buildDB {
                 }
                 out.executeUpdate(sql);
             }
-        } catch (SQLException ex) {
-            Logger.getLogger(buildDB.class.getName()).log(Level.SEVERE, null, ex);
+        } catch(SQLException e) {
+            Logger.getLogger(buildDB.class.getName()).log(Level.SEVERE, null, e);
         }
     }
     
@@ -174,49 +248,51 @@ public class buildDB {
             
             buildTables(inStmt, outStmt);
             System.out.println("\n" + hist + " database created successfully");
-            /**
+            
+            /*
             Iterator<Record> iter = table.recordIterator();
             int i = 0;
             while(i < 26) {
-                String s1 = "Embankment";
-                String s2 = "LifeTime";
-                Record rec = iter.next();
-                double num = 0;
-                Number n1 = rec.getNumberValue(s1);
-                Number n2 = rec.getNumberValue(s2);
-                
-                if(n1 == null) {
-                    System.out.println("EMPTY");
-                }
-                else if(n1.doubleValue() % 1 == 0 && !isDouble) {
-                    System.out.println(n1.intValue() + ": TYPE = INT");
-                    num = (4.87e-7 * Math.pow(n1.intValue(), 3.0) - 4.24e-3 * Math.pow(n1.intValue(), 2.0) + 1.28e1 * 2682 + 6.71e3);
-                    System.out.printf("%.2f", num / 50);
-                    System.out.println();
-                }
-                else {
-                    isDouble = true;
-                    System.out.println(n1 + ": TYPE = DOUBLE");
-                }
-                if(n2 == null) {
-                    System.out.println("EMPTY");
-                }
-                else if(n2.doubleValue() % 1 == 0 && !isDouble) {
-                    System.out.println(n2.intValue() + ": TYPE = INT");
-                    // num = (4.87e-7 * Math.pow(n2.intValue(), 3.0) - 4.24e-3 * Math.pow(n2.intValue(), 2.0) + 1.28e1 * 2682 + 6.71e3);
-                    // System.out.printf("%.2f", num / 50);
-                    // System.out.println(n2);
-                }
-                else {
-                    isDouble = true;
-                    System.out.println(n2 + ": TYPE = DOUBLE");
-                }
-                i++;
+            String s1 = "Embankment";
+            String s2 = "LifeTime";
+            Record rec = iter.next();
+            double num = 0;
+            Number n1 = rec.getNumberValue(s1);
+            Number n2 = rec.getNumberValue(s2);
+            
+            if(n1 == null) {
+            System.out.println("EMPTY");
+            }
+            else if(n1.doubleValue() % 1 == 0 && !isDouble) {
+            System.out.println(n1.intValue() + ": TYPE = INT");
+            num = (4.87e-7 * Math.pow(n1.intValue(), 3.0) - 4.24e-3 * Math.pow(n1.intValue(), 2.0) + 1.28e1 * 2682 + 6.71e3);
+            System.out.printf("%.2f", num / 50);
+            System.out.println();
+            }
+            else {
+            isDouble = true;
+            System.out.println(n1 + ": TYPE = DOUBLE");
+            }
+            if(n2 == null) {
+            System.out.println("EMPTY");
+            }
+            else if(n2.doubleValue() % 1 == 0 && !isDouble) {
+            System.out.println(n2.intValue() + ": TYPE = INT");
+            num = (4.87e-7 * Math.pow(n2.intValue(), 3.0) - 4.24e-3 * Math.pow(n2.intValue(), 2.0) + 1.28e1 * 2682 + 6.71e3);
+            System.out.printf("%.2f", num / 50);
+            System.out.println(n2);
+            }
+            else {
+            isDouble = true;
+            System.out.println(n2 + ": TYPE = DOUBLE");
+            }
+            i++;
             }
             
-            //float num = (float) (4.87e-7 * Math.pow(nv.intValue(), 3.0) - 4.24e-3 * Math.pow(nv.intValue, 2.0) + 1.28e1 * 2682 + 6.71e3);
-            //System.out.println(num / 50);
+            float num = (float) (4.87e-7 * Math.pow(nv.intValue(), 3.0) - 4.24e-3 * Math.pow(nv.intValue, 2.0) + 1.28e1 * 2682 + 6.71e3);
+            System.out.println(num / 50);
             */
+            
             String tbl = "yield_historic";
             fillCropEconFields(inStmt, outStmt, tbl);
             
@@ -273,11 +349,9 @@ public class buildDB {
             // HOLDING_ECON COST == TOTALCOST
             
             // GRAZING COST = UNIT COST * AREA from DBF
-        }
-        catch(SQLException e) {
+        } catch(SQLException e) {
             System.out.println(e);
-        }
-        finally {
+        } finally {
             table.close();
             cOutput.commit();
             cOutput.close();
