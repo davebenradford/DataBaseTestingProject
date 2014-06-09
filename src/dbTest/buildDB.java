@@ -118,18 +118,7 @@ public class buildDB {
         try {
             ResultSet inRs = in.executeQuery("SELECT * FROM " + tbl + ";");
             ResultSet outRs = out.executeQuery("SELECT * FROM " + tbl_names[1] + ";");
-            NameTypePair[] ntp = getInNamesAndTypes(inRs);
-            /*            String[] inColumnNames = new String[inRs.getMetaData().getColumnCount()];
-            String[] inColumnPos = new String[inRs.getMetaData().getColumnCount()];
-            for(int i = 1; i <= inRs.getMetaData().getColumnCount(); i++) {
-            inColumnNames[i - 1] = inRs.getMetaData().getColumnName(i);
-            if(inRs.getMetaData().getColumnType(i) == 4) {
-            inColumnPos[i - 1] = "int";
-            }
-            else {
-            inColumnPos[i - 1] = "dbl";
-            }
-            }*/
+            NameTypePair[] ntp = getInNamesAndTypes(inRs, false);
             String outColumnNames = loadOutputColumnNames(outRs);
             setOutputValues(inRs, ntp, outColumnNames, out);
         } catch (SQLException e) {
@@ -142,6 +131,7 @@ public class buildDB {
             ResultSet inRsFrm = in.executeQuery("SELECT DISTINCT farm FROM " + tblB + "WHERE farm > 0;");
             ResultSet inRsFld = in.executeQuery("SELECT * FROM " + tblA + ";");
             ResultSet outRs = out.executeQuery("SELECT * FROM " + tbl_names[0] + ";");
+            //NameTypePair[] ntp = getInNamesAndTypes(inRsFld, true);
             String[] inColumnNames = new String[inRsFld.getMetaData().getColumnCount()];
             String[] inColumnPos = new String[inRsFld.getMetaData().getColumnCount()];
             inColumnNames[0] = inRsFrm.getMetaData().getColumnName(2);
@@ -155,18 +145,25 @@ public class buildDB {
                     inColumnPos[i - 1] = "dbl";
                 }
             }
+            //String outColumnNames = loadOutputColumnNames(outRs);
+            //setOutputValues(inRs, ntp, outColumnNames, out);
         } catch(SQLException e) {
             Logger.getLogger(buildDB.class.getName()).log(Level.SEVERE, null, e);
         }
     }
     
-    private static NameTypePair[] getInNamesAndTypes(ResultSet iRs) {
+    private static NameTypePair[] getInNamesAndTypes(ResultSet iRs, boolean hasFirst) {
         NameTypePair[] ntp = null;
+        int x = 0;
         try {
             ntp = new NameTypePair[iRs.getMetaData().getColumnCount()];
-            //String[] inNames = new String[iRs.getMetaData().getColumnCount()];
-            //String[] inTypes = new String[iRs.getMetaData().getColumnCount()];
-            for (int i = 1; i <= iRs.getMetaData().getColumnCount(); i++) {
+            if(hasFirst) {
+                x = 2;
+            }
+            else {
+                x = 1;
+            }
+            for(int i = x; i <= iRs.getMetaData().getColumnCount(); i++) {
                 if (iRs.getMetaData().getColumnType(i) == 4) {
                     ntp[i - 1] = new NameTypePair(iRs.getMetaData().getColumnName(i), 1);
                 } else {
