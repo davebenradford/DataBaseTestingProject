@@ -92,7 +92,6 @@ public class buildDB {
                     System.out.println("\nTABLES CREATED");
                 }
                 else {
-                    System.out.println("\n" + sql);
                     out.executeUpdate(sql);
                 }
             }
@@ -118,52 +117,60 @@ public class buildDB {
         try {
             ResultSet inRs = in.executeQuery("SELECT * FROM " + tbl + ";");
             ResultSet outRs = out.executeQuery("SELECT * FROM " + tbl_names[1] + ";");
-            NameTypePair[] ntp = getInNamesAndTypes(inRs, false);
+            NameTypePair[] ntp = getInputNamesAndTypes(inRs);
             String outColumnNames = loadOutputColumnNames(outRs);
-            setOutputValues(inRs, ntp, outColumnNames, out);
+            String sql = "INSERT INTO " + tbl_names[1] + "(" + outColumnNames + "VALUES(";
+            while(inRs.next()) {
+                out.executeUpdate(buildFieldOutputQuery(inRs, ntp, sql, 0));
+            }
         } catch (SQLException e) {
-            Logger.getLogger(buildDB.class.getName()).log(Level.SEVERE, null, e);
+            Logger.getLogger(buildDB.class.getName()).log(Level.SEVERE, null, e); 
         }
     }
     
-    private static void fillCropEconFarm(Statement in, Statement out, String tblA, String tblB){
+    /**
+     * 
+     * @param inFld
+     * @param inBmp
+     * @param out
+     * @param tblA
+     * @param tblB 
+     */
+    
+    private static void fillCropEconFarms(Statement inFld, Statement inBmp, Statement out, String tblA, String tblB){
         try {
-            ResultSet inRsFrm = in.executeQuery("SELECT DISTINCT farm FROM " + tblB + "WHERE farm > 0;");
-            ResultSet inRsFld = in.executeQuery("SELECT * FROM " + tblA + ";");
+            ResultSet inRsFld = inFld.executeQuery("SELECT * FROM " + tblA + ";");
+            ResultSet inRsFrm = inBmp.executeQuery("SELECT * FROM " + tblB + " WHERE farm > 0;");
             ResultSet outRs = out.executeQuery("SELECT * FROM " + tbl_names[0] + ";");
-            //NameTypePair[] ntp = getInNamesAndTypes(inRsFld, true);
-            String[] inColumnNames = new String[inRsFld.getMetaData().getColumnCount()];
-            String[] inColumnPos = new String[inRsFld.getMetaData().getColumnCount()];
-            inColumnNames[0] = inRsFrm.getMetaData().getColumnName(2);
-            inColumnPos[0] = "int";
-            for(int i = 2; i <= inRsFld.getMetaData().getColumnCount(); i++) {
-                inColumnNames[i - 1] = inRsFld.getMetaData().getColumnName(i);
-                if(inRsFld.getMetaData().getColumnType(i) == 4) {
-                    inColumnPos[i - 1] = "int";
-                }
-                else {
-                    inColumnPos[i - 1] = "dbl";
-                }
-            }
-            //String outColumnNames = loadOutputColumnNames(outRs);
-            //setOutputValues(inRs, ntp, outColumnNames, out);
+            NameTypePair[] ntp = getInputNamesAndTypes(inRsFld);
+            String outColumnNames = loadOutputColumnNames(outRs);
+            String sql = "INSERT INTO " + tbl_names[0] + "(" + outColumnNames + "VALUES(";
+            loadFarmSubbasinTableData(inRsFrm, inFld, tblA, ntp, sql, out);
         } catch(SQLException e) {
             Logger.getLogger(buildDB.class.getName()).log(Level.SEVERE, null, e);
         }
     }
     
-    private static NameTypePair[] getInNamesAndTypes(ResultSet iRs, boolean hasFirst) {
+    /**
+     * 
+     * @param iRs: Input ResultSet containing the query result from the source
+     *             table. All data will be written to the output Table using the
+     *             out Connection Statement variable. The naming convention for
+     *             the variables does not need the 'i' to represent input within
+     *             the functions individually. This has been done to ensure that
+     *             the documentation for the program can be clearly followed
+     *             when troubleshooting bugs in the future. An 'i' prefix
+     *             represents a ResultSet using a query with an Input Connection
+     *             and an 'o' prefix represents a ResultSet using a query with
+     *             an Output Connection.
+     * @return ntp: The NameTypePair array compiled in the function. 
+     */
+    
+    private static NameTypePair[] getInputNamesAndTypes(ResultSet iRs) {
         NameTypePair[] ntp = null;
-        int x = 0;
         try {
             ntp = new NameTypePair[iRs.getMetaData().getColumnCount()];
-            if(hasFirst) {
-                x = 2;
-            }
-            else {
-                x = 1;
-            }
-            for(int i = x; i <= iRs.getMetaData().getColumnCount(); i++) {
+            for(int i = 1; i <= iRs.getMetaData().getColumnCount(); i++) {
                 if (iRs.getMetaData().getColumnType(i) == 4) {
                     ntp[i - 1] = new NameTypePair(iRs.getMetaData().getColumnName(i), 1);
                 } else {
@@ -175,6 +182,19 @@ public class buildDB {
         }
         return ntp;
     }
+    
+    /**
+     * 
+     * @param oRs: Output ResultSet containing the query result from the target
+     *             table.
+     * @return outColumnNames: A formatted String containing all of the column
+     *                         names in the table. This is done separately from
+     *                         data retrieval in the setOutputValues function to
+     *                         allow the columns names of the output tables to
+     *                         work with the data from the source tables, based
+     *                         on consistent naming standards. 
+     * 
+     */
     
     private static String loadOutputColumnNames(ResultSet oRs) {
         String outColumnNames = "";
@@ -195,34 +215,129 @@ public class buildDB {
         return outColumnNames;
     }
     
-    private static void setOutputValues(ResultSet iRs, NameTypePair[] ntp, String outCols, Statement out) {
+    /**
+     * 
+     * @param rsBmp
+     * @param in
+     * @param tbl
+     * @param ntp
+     * @param s
+     * @param out 
+     */
+    
+    private static void loadFarmSubbasinTableData(ResultSet rsBmp, Statement in, String tbl, NameTypePair[] ntp, String s, Statement out) {
         try {
-            while(iRs.next()) {
-                String sql = "INSERT INTO " + tbl_names[1] + "(" + outCols + "VALUES(";
-                for(int i = 0; i < iRs.getMetaData().getColumnCount(); i++) {
-                    if(ntp[i].getPairType() == 1) {
-                        sql += iRs.getInt(ntp[i].getPairName());
-                    }
-                    else {
-                        sql += iRs.getDouble(ntp[i].getPairName());
-                    }
-                    if(i == (iRs.getMetaData().getColumnCount() - 1)) {
-                        sql += ");";
-                    }
-                    else {
-                        sql += ", ";
+            while(rsBmp.next()) {
+                String sql = s;
+                sql += rsBmp.getInt(2) + ", ";
+                int farmId = rsBmp.getInt(1);
+                if(rsBmp.getDouble(3) == 1.0) {
+                    ResultSet rsField = in.executeQuery("SELECT * FROM " + tbl + " WHERE field = " + farmId + ";");
+                    while(rsField.next()) {
+                        out.executeUpdate(buildFieldOutputQuery(rsField, ntp, sql, 1));
                     }
                 }
-                out.executeUpdate(sql);
+                else {
+                    ResultSet rsField = in.executeQuery("SELECT * FROM " + rsBmp.getMetaData().getTableName(1) + " WHERE farm = " + rsBmp.getInt(2) + ";");
+                    IdPercentPair[] ipp = null, temp = null;
+                    int index = 0;
+                    while(rsField.next()) {
+                        if(ipp == null) {
+                            ipp = new IdPercentPair[1];
+                            temp = new IdPercentPair[1];
+                            ipp[index] = new IdPercentPair(rsField.getInt("field"), rsField.getDouble("percent"));
+                            temp[index] = new IdPercentPair();
+                            index++;
+                        }
+                        else {
+                            temp = new IdPercentPair[ipp.length];
+                            System.arraycopy(ipp, 0, temp, 0, temp.length);
+                            ipp = new IdPercentPair[temp.length + 1];
+                            System.arraycopy(temp, 0, ipp, 0, temp.length);
+                            ipp[index] = new IdPercentPair(rsField.getInt("field"), rsField.getDouble("percent"));
+                            index++;
+                        }
+                    }
+                    double[] bmpPercentTotals = new double[4];
+                    for (IdPercentPair ipp1 : ipp) {
+                        rsField = in.executeQuery("SELECT * FROM " + tbl + " WHERE field = " + ipp1.getPairId() + ";");
+                        while(rsField.next()) {
+                            bmpPercentTotals = setFarmSubbasinPercentTotals(rsField, ntp, ipp1, bmpPercentTotals);
+                        }
+                    }
+                }
             }
         } catch(SQLException e) {
             Logger.getLogger(buildDB.class.getName()).log(Level.SEVERE, null, e);
         }
     }
+
+    /**
+     * 
+     * @param iRs: Input ResultSet containing the query result from the source table.
+     * @param ntp: NameTypePair array. Contains the name of the column and its data type.
+     * @param ipp:
+     * @param s: Formatted string containing the start of the command for the
+     *           SQLite query to update the output table.
+     * @return 
+     */
+    
+    private static double[] setFarmSubbasinPercentTotals(ResultSet iRs, NameTypePair[] ntp, IdPercentPair ipp, double[] bpt) {
+        try {
+            for(int i = 2; i < iRs.getMetaData().getColumnCount(); i++) {
+                bpt[i - 2] = iRs.getDouble(ntp[i].getPairName()) * ipp.getPairPercent();
+            }
+            return bpt;
+        } catch(SQLException e) {
+            Logger.getLogger(buildDB.class.getName()).log(Level.SEVERE, null, e);
+        }
+        return null;
+    }
+    
+    /**
+     * 
+     * @param iRs
+     * @param ntp
+     * @param s
+     * @param n
+     * @return 
+     */
+    
+    private static String buildFieldOutputQuery(ResultSet iRs, NameTypePair[] ntp, String s, int n) {
+        try {
+            String sql = s;
+            for(int i = n; i < iRs.getMetaData().getColumnCount(); i++) {
+                if(ntp[i].getPairType() == 1) {
+                    sql += iRs.getInt(ntp[i].getPairName());
+                }
+                else {
+                    sql += iRs.getDouble(ntp[i].getPairName());
+                }
+                if(i == (iRs.getMetaData().getColumnCount() - 1)) {
+                    sql += ");";
+                }
+                else {
+                    sql += ", ";
+                }
+            }
+            return sql;
+        } catch(SQLException e) {
+            Logger.getLogger(buildDB.class.getName()).log(Level.SEVERE, null, e);
+        }
+        return "";
+    }
+    
+    private static String buildFarmSubbasinOutputQuery(double[] bpt, String s) {
+        String sql = s;
+        for(int i = 0; i < 1; i++) {
+            sql += "";
+        }
+        return sql;
+    }
     
     public static void main(String[] args) throws ClassNotFoundException, SQLException, IOException, CorruptedTableException {
         Connection cInDb3 = null, cOutput = null;
-        Statement inStmt = null, outStmt =  null;
+        Statement inStmtA = null, inStmtB = null, outStmt =  null;
         Table table = null;
         boolean isDouble = false;
         int index;
@@ -231,7 +346,8 @@ public class buildDB {
             
             cInDb3 = DriverManager.getConnection("jdbc:sqlite:" + inDB + ".db3");
             cInDb3.setAutoCommit(false);
-            inStmt = cInDb3.createStatement();
+            inStmtA = cInDb3.createStatement();
+            inStmtB = cInDb3.createStatement();
             System.out.println("\nOpened " + inDB + " database successfully");
             
             cOutput = DriverManager.getConnection("jdbc:sqlite:" + hist + ".db3");
@@ -243,7 +359,7 @@ public class buildDB {
             table.open(IfNonExistent.ERROR);
             System.out.println("\nOpened " + inDBF + " database successfully");
             
-            buildTables(inStmt, outStmt);
+            buildTables(inStmtA, outStmt);
             System.out.println("\n" + hist + " database created successfully");
             
             /*
@@ -291,7 +407,9 @@ public class buildDB {
             */
             
             String tbl = "yield_historic";
-            fillCropEconFields(inStmt, outStmt, tbl);
+            fillCropEconFields(inStmtA, outStmt, tbl);
+            String tblB = "field_farm";
+            fillCropEconFarms(inStmtA, inStmtB, outStmt, tbl, tblB);
             
             
             /** HOLDING POND COST / Lifetime (50)
