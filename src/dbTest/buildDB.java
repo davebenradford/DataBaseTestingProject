@@ -110,7 +110,7 @@ public class buildDB {
      *             For all subsequent fillTableX functions, in refers to the Output connection. Any
      *             variables having the prefix 'out' are used in relation to values taken from/written to the output table
      *             via the output DB connection. 
-     * @param tbl: Name of the Input Table from the SQLite3 DB.  
+     * @param tbl: Name of the Input Table called yield_historic from the SQLite3 DB.
      */
     
     private static void fillCropEconFields(Statement in, Statement out, String tbl) {
@@ -130,22 +130,51 @@ public class buildDB {
     
     /**
      * 
-     * @param inFld
-     * @param inBmp
-     * @param out
-     * @param tblA
-     * @param tblB 
+     * @param inFld: Input Statement for the yield_historic SQL Table. Referred
+     *               to as Fld since it is used to build crop_Economic_Fields
+     *               table. Additionally, each farm/subbasin is comprised of the
+     *               fields from this table.
+     * @param inBmp: Input Statement for the field_farm SQL Table.
+     *               Referred to as inBMP to avoid duplication of the functions
+     *               used to build the output SQL Tables. Farm and Subbasin are
+     *               built using the same functions.
+     * @param out: Output Statement Call.
+     * @param tblA: yield_historic SQL Table.
+     * @param tblB: field_farm SQL Table.
      */
     
     private static void fillCropEconFarms(Statement inFld, Statement inBmp, Statement out, String tblA, String tblB){
         try {
             ResultSet inRsFld = inFld.executeQuery("SELECT * FROM " + tblA + ";");
-            ResultSet inRsFrm = inBmp.executeQuery("SELECT * FROM " + tblB + " WHERE farm > 0;");
+            ResultSet inRsFrm = inBmp.executeQuery("SELECT * FROM " + tblB + " WHERE farm > 0 ORDER BY farm;");
             ResultSet outRs = out.executeQuery("SELECT * FROM " + tbl_names[0] + ";");
             NameTypePair[] ntp = getInputNamesAndTypes(inRsFld);
             String outColumnNames = loadOutputColumnNames(outRs);
             String sql = "INSERT INTO " + tbl_names[0] + "(" + outColumnNames + "VALUES(";
-            loadFarmSubbasinTableData(inRsFrm, inFld, tblA, ntp, sql, out);
+            loadFarmSubbasinTableData(inRsFrm, inFld, tblA, ntp, sql, out, "farm");
+        } catch(SQLException e) {
+            Logger.getLogger(buildDB.class.getName()).log(Level.SEVERE, null, e);
+        }
+    }
+    
+    /**
+     * 
+     * @param inFld: Input Statement for the yield_historic SQL Table.
+     * @param inBmp: Input Statement for the field_subbasin SQL Table.
+     * @param out: Output Statement Call.
+     * @param tblA: yield_historic SQL Table.
+     * @param tblB: field_subbasin SQL Table.
+     */
+    
+    private static void fillCropEconSubbasins(Statement inFld, Statement inBmp, Statement out, String tblA, String tblB) {
+        try {
+            ResultSet inRsFld = inFld.executeQuery("SELECT * FROM " + tblA + ";");
+            ResultSet inRsBsn = inBmp.executeQuery("SELECT * FROM " + tblB + " WHERE subbasin > 0 ORDER BY subbasin;");
+            ResultSet outRs = out.executeQuery("SELECT * FROM " + tbl_names[2] + ";");
+            NameTypePair[] ntp = getInputNamesAndTypes(inRsFld);
+            String outColumnNames = loadOutputColumnNames(outRs);
+            String sql = "INSERT INTO " + tbl_names[2] + "(" + outColumnNames + "VALUES(";
+            loadFarmSubbasinTableData(inRsBsn, inFld, tblA, ntp, sql, out, "subbasin");
         } catch(SQLException e) {
             Logger.getLogger(buildDB.class.getName()).log(Level.SEVERE, null, e);
         }
@@ -185,8 +214,7 @@ public class buildDB {
     
     /**
      * 
-     * @param oRs: Output ResultSet containing the query result from the target
-     *             table.
+     * @param oRs: Output ResultSet containing the query result from the target table.
      * @return outColumnNames: A formatted String containing all of the column
      *                         names in the table. This is done separately from
      *                         data retrieval in the setOutputValues function to
@@ -217,52 +245,94 @@ public class buildDB {
     
     /**
      * 
-     * @param rsBmp
-     * @param in
-     * @param tbl
-     * @param ntp
-     * @param s
-     * @param out 
+     * @param rsBmp: ResultSet for either the field_farm or field_subbasin
+     *               SQL Table. Due to the same functions being needed for both
+     *               the crop_economic_farms and crop_economic_subbasins SQL
+     *               Tables, BMP is used as a common identifier in the function.
+     * @param in: Input Statement Call.
+     * @param tbl: yield_historic SQL Table.
+     * @param ntp: The NameTypePair array from getInputNamesAndTypes.
+     * @param s: String containing the SQL Query to be written to the output Table.
+     * @param out: Output Statement Call.
      */
     
-    private static void loadFarmSubbasinTableData(ResultSet rsBmp, Statement in, String tbl, NameTypePair[] ntp, String s, Statement out) {
+    private static void loadFarmSubbasinTableData(ResultSet rsBmp, Statement in, String tbl, NameTypePair[] ntp, String s, Statement out, String bmp) {
         try {
+            int multiField = 0;
             while(rsBmp.next()) {
                 String sql = s;
                 sql += rsBmp.getInt(2) + ", ";
-                int farmId = rsBmp.getInt(1);
-                if(rsBmp.getDouble(3) == 1.0) {
-                    ResultSet rsField = in.executeQuery("SELECT * FROM " + tbl + " WHERE field = " + farmId + ";");
-                    while(rsField.next()) {
-                        out.executeUpdate(buildFieldOutputQuery(rsField, ntp, sql, 1));
-                    }
+                int fieldId = rsBmp.getInt(1);
+                int bmpId = rsBmp.getInt(2);
+                if(multiField == bmpId) {
                 }
                 else {
-                    ResultSet rsField = in.executeQuery("SELECT * FROM " + rsBmp.getMetaData().getTableName(1) + " WHERE farm = " + rsBmp.getInt(2) + ";");
-                    IdPercentPair[] ipp = null, temp = null;
-                    int index = 0;
-                    while(rsField.next()) {
-                        if(ipp == null) {
-                            ipp = new IdPercentPair[1];
-                            temp = new IdPercentPair[1];
-                            ipp[index] = new IdPercentPair(rsField.getInt("field"), rsField.getDouble("percent"));
-                            temp[index] = new IdPercentPair();
-                            index++;
-                        }
-                        else {
-                            temp = new IdPercentPair[ipp.length];
-                            System.arraycopy(ipp, 0, temp, 0, temp.length);
-                            ipp = new IdPercentPair[temp.length + 1];
-                            System.arraycopy(temp, 0, ipp, 0, temp.length);
-                            ipp[index] = new IdPercentPair(rsField.getInt("field"), rsField.getDouble("percent"));
-                            index++;
+                    multiField = bmpId;
+                    if(rsBmp.getDouble(3) == 1.0) {
+                        ResultSet rsField = in.executeQuery("SELECT * FROM " + tbl + " WHERE field = " + fieldId + ";");
+                        while(rsField.next()) {
+                            out.executeUpdate(buildFieldOutputQuery(rsField, ntp, sql, 1));
                         }
                     }
-                    double[] bmpPercentTotals = new double[4];
-                    for (IdPercentPair ipp1 : ipp) {
-                        rsField = in.executeQuery("SELECT * FROM " + tbl + " WHERE field = " + ipp1.getPairId() + ";");
+                    else {
+                        ResultSet rsField = in.executeQuery("SELECT * FROM " + rsBmp.getMetaData().getTableName(1) + " WHERE " + bmp + " = " + rsBmp.getInt(2) + ";");
+                        IdPercentPair[] ipp = null, temp = null;
+                        int index = 0;
                         while(rsField.next()) {
-                            bmpPercentTotals = setFarmSubbasinPercentTotals(rsField, ntp, ipp1, bmpPercentTotals);
+                            if(ipp == null) {
+                                ipp = new IdPercentPair[1];
+                                temp = new IdPercentPair[1];
+                                ipp[index] = new IdPercentPair(rsField.getInt("field"), rsField.getDouble("percent"));
+                                temp[index] = new IdPercentPair();
+                                index++;
+                            }
+                            else {
+                                temp = new IdPercentPair[ipp.length];
+                                System.arraycopy(ipp, 0, temp, 0, temp.length);
+                                ipp = new IdPercentPair[temp.length + 1];
+                                System.arraycopy(temp, 0, ipp, 0, temp.length);
+                                ipp[index] = new IdPercentPair(rsField.getInt("field"), rsField.getDouble("percent"));
+                                index++;
+                            }
+                        }
+                        double[][] bmpPercentTotals = new double[20][5];
+                        for (IdPercentPair ipp1 : ipp) {
+                            int i = 0;
+                            rsField = in.executeQuery("SELECT * FROM " + tbl + " WHERE field = " + ipp1.getPairId() + ";");
+                            while(rsField.next()) {
+                                try {
+                                    for(int j = 1; j < rsField.getMetaData().getColumnCount(); j++) {
+                                        if(j == 1) {
+                                            bmpPercentTotals[i][j - 1] = rsField.getInt(ntp[j].getPairName());
+                                        }
+                                        else {
+                                            bmpPercentTotals[i][j - 1] += rsField.getDouble(ntp[j].getPairName()) * ipp1.getPairPercent();
+                                        }
+
+                                    }
+                                } catch(SQLException e) {
+                                    Logger.getLogger(buildDB.class.getName()).log(Level.SEVERE, null, e);
+                                }
+                                i++;
+                            }
+                        }
+                        for(int x = 0; x < 20; x++) {
+                            String pctSql = sql;
+                            for(int y = 0; y < 5; y++) {
+                                if(y == 0) {
+                                    int year = (int) bmpPercentTotals[x][y];
+                                    pctSql += year + ", ";
+                                }
+                                else {
+                                    if(y == 4) {
+                                        pctSql += bmpPercentTotals[x][y] + ");";
+                                    }
+                                    else {
+                                        pctSql += bmpPercentTotals[x][y] + ", ";
+                                    }
+                                }
+                            }
+                            out.executeUpdate(pctSql);
                         }
                     }
                 }
@@ -271,36 +341,14 @@ public class buildDB {
             Logger.getLogger(buildDB.class.getName()).log(Level.SEVERE, null, e);
         }
     }
-
+    
     /**
      * 
      * @param iRs: Input ResultSet containing the query result from the source table.
-     * @param ntp: NameTypePair array. Contains the name of the column and its data type.
-     * @param ipp:
-     * @param s: Formatted string containing the start of the command for the
-     *           SQLite query to update the output table.
-     * @return 
-     */
-    
-    private static double[] setFarmSubbasinPercentTotals(ResultSet iRs, NameTypePair[] ntp, IdPercentPair ipp, double[] bpt) {
-        try {
-            for(int i = 2; i < iRs.getMetaData().getColumnCount(); i++) {
-                bpt[i - 2] = iRs.getDouble(ntp[i].getPairName()) * ipp.getPairPercent();
-            }
-            return bpt;
-        } catch(SQLException e) {
-            Logger.getLogger(buildDB.class.getName()).log(Level.SEVERE, null, e);
-        }
-        return null;
-    }
-    
-    /**
-     * 
-     * @param iRs
-     * @param ntp
-     * @param s
-     * @param n
-     * @return 
+     * @param ntp: The NameTypePair array from getInputNamesAndTypes. 
+     * @param s: String containing the SQL Query to be written to the output Table.
+     * @param n: Starts building the Query String from the column n - 1 in ntp.
+     * @return sql: The Query needed for the output statement.
      */
     
     private static String buildFieldOutputQuery(ResultSet iRs, NameTypePair[] ntp, String s, int n) {
@@ -327,13 +375,14 @@ public class buildDB {
         return "";
     }
     
-    private static String buildFarmSubbasinOutputQuery(double[] bpt, String s) {
-        String sql = s;
-        for(int i = 0; i < 1; i++) {
-            sql += "";
-        }
-        return sql;
-    }
+    /**
+     * 
+     * @param args
+     * @throws ClassNotFoundException: Missing the Library for SQLite version of JDBC.
+     * @throws SQLException: Error with Queries made using SQLite.
+     * @throws IOException: File I/O Error when verifying existence of a DBF table.
+     * @throws CorruptedTableException: Verifies the integrity of the input DBF table. 
+     */
     
     public static void main(String[] args) throws ClassNotFoundException, SQLException, IOException, CorruptedTableException {
         Connection cInDb3 = null, cOutput = null;
@@ -408,9 +457,13 @@ public class buildDB {
             
             String tbl = "yield_historic";
             fillCropEconFields(inStmtA, outStmt, tbl);
+            System.out.println("\ncrop_economic_fields database created successfully");
             String tblB = "field_farm";
             fillCropEconFarms(inStmtA, inStmtB, outStmt, tbl, tblB);
-            
+            System.out.println("\ncrop_economic_farms database created successfully");
+            tblB = "field_subbasin";
+            fillCropEconSubbasins(inStmtA, inStmtB, outStmt, tbl, tblB);
+            System.out.println("\ncrop_economic_subbasins database created successfully");
             
             /** HOLDING POND COST / Lifetime (50)
                             double sqrtCattles = Math.Sqrt(Cattles);
