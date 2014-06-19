@@ -7,6 +7,7 @@ import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -385,9 +386,11 @@ public class buildDB {
      * @throws CorruptedTableException: Verifies the integrity of the input DBF table. 
      */
     
-    private static void loadDbfTables(Table tbl, String existing, String[] columns) throws IOException {
+    private static double[][] loadDbfTables(Table tbl, String existing, String[] columns) throws IOException {
+        double[][] vals = null;
         try {
             tbl.open(IfNonExistent.ERROR);
+            vals = new double[tbl.getRecordCount()][columns.length];
             System.out.println("\nOpened " + tbl.getName() + " database successfully");
             
             Iterator<Record> iter = tbl.recordIterator();
@@ -395,13 +398,13 @@ public class buildDB {
                 Record rec = iter.next();
                 Number exists = rec.getNumberValue(existing);
                 if(exists.intValue() == 1) {
-                    for (String col: columns) {
-                        Number n = rec.getNumberValue(col);
-                        double val = n.doubleValue();
-                        System.out.printf("%.9f", val);
-                        System.out.println(": " + col);
+                    for(int j = 0; j < columns.length; j++) {
+                        Number n = rec.getNumberValue(columns[j]);
+                        vals[i][j] = n.doubleValue();
+                        System.out.printf("%.2f", vals[i][j]);
+                        System.out.println(": " + columns[j]);
                     }
-                    System.out.println("\n");
+                    System.out.println();
                 }
             }
         } catch (IOException | CorruptedTableException e) {
@@ -409,13 +412,17 @@ public class buildDB {
         }
         finally {
             tbl.close();
+            return vals;
         }
+    }
+    
+    private static void buildOutputDbfTables(double[][] src, Statement out) {
+        
     }
     
     public static void main(String[] args) throws ClassNotFoundException, SQLException, IOException {
         Connection cInDb3 = null, cOutput = null;
         Statement inStmtA = null, inStmtB = null, outStmt =  null;
-        Table table = null;
         boolean isDouble = false;
         int index;
         try {
@@ -448,12 +455,39 @@ public class buildDB {
             fillCropEconSubbasins(inStmtA, inStmtB, outStmt, tbl, tblB);
             System.out.println("\ncrop_economic_subbasins database created successfully");
             
+            double[][] src;
             String[] dam = {"ID", "Embankment", "LifeTime"};
-            loadDbfTables(new Table(new File(path + dbf_tbls[0])), "Existing", dam);
+            src = loadDbfTables(new Table(new File(path + dbf_tbls[0])), "Existing", dam);
+            
+            for(double[] s: src) {
+                for(int i = 0; i < s.length; i++) {
+                    try {
+                        int val = (int) s[i];
+                        System.out.println(val);
+                    }
+                    catch(NumberFormatException  e) {
+                        System.out.println("error");
+                    }
+                }
+            }
+            
             String[] pond = {"ID", "HRU", "Cattles", "ClayLiner", "PlasticLn", "WireFence", "Distance", "Trenching", "Pond_Yrs"};
-            loadDbfTables(new Table(new File(path + dbf_tbls[1])), "Existing", pond);
+            src = loadDbfTables(new Table(new File(path + dbf_tbls[1])), "Existing", pond);
+            
+            for(double[] s: src) {
+                for(int i = 0; i < s.length; i++) {
+                    try {
+                        int val = (int) s[i];
+                        System.out.println(val);
+                    }
+                    catch(NumberFormatException  e) {
+                        System.out.println("error");
+                    }
+                }
+            }
+            
             String[] graze = {"ID", "Grazing_Ha", "UnitCost"};
-            loadDbfTables(new Table(new File(path + dbf_tbls[2])), "Existing", graze);
+            src = loadDbfTables(new Table(new File(path + dbf_tbls[2])), "Existing", graze);
                 /*
                 int i = 0;
                 while(i < 26) {
