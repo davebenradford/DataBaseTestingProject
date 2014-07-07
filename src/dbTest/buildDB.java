@@ -2,22 +2,19 @@ package dbTest;
 
 import java.io.File;
 import java.io.IOException;
-import java.sql.Connection;
-import java.sql.DriverManager;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.sql.Statement;
-import java.util.ArrayList;
+import java.sql.*;
 import java.util.Iterator;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import nl.knaw.dans.common.dbflib.*;
+import nl.knaw.dans.common.dbflib.CorruptedTableException;
+import nl.knaw.dans.common.dbflib.IfNonExistent;
+import nl.knaw.dans.common.dbflib.Record;
+import nl.knaw.dans.common.dbflib.Table;
 
 public class buildDB {
-    private static final String hist = "base_historic";
-    private static final String conv = "base_conventional";
-    private static final String inDB = "spatial";
-    private static final String path = "C:\\Users\\radfordd\\Documents\\NetBeansProjects\\DataBaseTestingProject\\Data\\Spatial\\";
+    private static final String hist = "base_historic.db3";
+    private static final String conv = "base_conventional.db3";
+    private static final String inDB = "spatial.db3";
     private static final String[] tbl_names = {"crop_economic_farms", "crop_economic_fields", "crop_economic_subbasins", "forage", "forage_hru", "grazing",
                                                "grazing_economic", "grazing_economic_subbasins", "grazing_hrus", "holding_ponds", "holding_ponds_economic",
                                                "small_dams", "small_dams_economic", "tillage", "tillage_hrus"};
@@ -25,8 +22,8 @@ public class buildDB {
                                                "clay_liner", "plastic_ln", "wire_fence", "distance", "trenching", "pond_yrs", "annual_cost",
                                                "maintenance", "total_cost", "embankment", "life_time", "tillage"};
     private static final String[] types = {"int", "real"};
-    private static final String[] dbf_tbls = {"small_dam.dbf", "cattle_yard.dbf", "grazing.dbf"};
-    //, "land2010_by_land_id", "farm2010"
+    private static final File[] dbf_tbls = {new File("Data/Spatial/small_dam.dbf"), new File("Data/Spatial/cattle_yard.dbf"), new File("Data/Spatial/grazing.dbf")};
+    // "land2010_by_land_id", "farm2010"
     
     /**
      * 
@@ -120,7 +117,7 @@ public class buildDB {
             ResultSet inRs = in.executeQuery("SELECT * FROM " + tbl + ";");
             ResultSet outRs = out.executeQuery("SELECT * FROM " + tbl_names[1] + ";");
             NameTypePair[] ntp = getInputNamesAndTypes(inRs);
-            String outColumnNames = loadOutputColumnNames(outRs);
+            String outColumnNames = loadOutputSqlColumnNames(outRs);
             String sql = "INSERT INTO " + tbl_names[1] + "(" + outColumnNames + "VALUES(";
             while(inRs.next()) {
                 out.executeUpdate(buildFieldOutputQuery(inRs, ntp, sql, 0));
@@ -151,7 +148,7 @@ public class buildDB {
             ResultSet inRsFrm = inBmp.executeQuery("SELECT * FROM " + tblB + " WHERE farm > 0 ORDER BY farm;");
             ResultSet outRs = out.executeQuery("SELECT * FROM " + tbl_names[0] + ";");
             NameTypePair[] ntp = getInputNamesAndTypes(inRsFld);
-            String outColumnNames = loadOutputColumnNames(outRs);
+            String outColumnNames = loadOutputSqlColumnNames(outRs);
             String sql = "INSERT INTO " + tbl_names[0] + "(" + outColumnNames + "VALUES(";
             loadFarmSubbasinTableData(inRsFrm, inFld, tblA, ntp, sql, out, "farm");
         } catch(SQLException e) {
@@ -174,7 +171,7 @@ public class buildDB {
             ResultSet inRsBsn = inBmp.executeQuery("SELECT * FROM " + tblB + " WHERE subbasin > 0 ORDER BY subbasin;");
             ResultSet outRs = out.executeQuery("SELECT * FROM " + tbl_names[2] + ";");
             NameTypePair[] ntp = getInputNamesAndTypes(inRsFld);
-            String outColumnNames = loadOutputColumnNames(outRs);
+            String outColumnNames = loadOutputSqlColumnNames(outRs);
             String sql = "INSERT INTO " + tbl_names[2] + "(" + outColumnNames + "VALUES(";
             loadFarmSubbasinTableData(inRsBsn, inFld, tblA, ntp, sql, out, "subbasin");
         } catch(SQLException e) {
@@ -226,7 +223,7 @@ public class buildDB {
      * 
      */
     
-    private static String loadOutputColumnNames(ResultSet oRs) {
+    private static String loadOutputSqlColumnNames(ResultSet oRs) {
         String outColumnNames = "";
         try {
             String[] outColumnNamesArray = new String[oRs.getMetaData().getColumnCount()];      
@@ -378,12 +375,14 @@ public class buildDB {
     }
     
     /**
-     * 
-     * @param args
-     * @throws ClassNotFoundException: Missing the Library for SQLite version of JDBC.
-     * @throws SQLException: Error with Queries made using SQLite.
-     * @throws IOException: File I/O Error when verifying existence of a DBF table.
-     * @throws CorruptedTableException: Verifies the integrity of the input DBF table. 
+     * @param tbl: Input DBF Formatted Table.
+     * @param existing: The String used to mark the Existing Column. Used specifically
+     *                  for the base scenarios. A modification will be needed for the
+     *                  user-defined scenarios. Possibly a boolean call.
+     * @param columns: Column names found within the input Table.
+     * @return vals: A collection of the entries for each row in the input Table.
+     *               Each row contains the data from the corresponding columns.
+     * @throws IOException 
      */
     
     private static double[][] loadDbfTables(Table tbl, String existing, String[] columns) throws IOException {
@@ -391,7 +390,7 @@ public class buildDB {
         try {
             tbl.open(IfNonExistent.ERROR);
             vals = new double[tbl.getRecordCount()][columns.length];
-            System.out.println("\nOpened " + tbl.getName() + " database successfully");
+            System.out.println("\nOpened " + tbl.getName() + " database successfully\n");
             
             Iterator<Record> iter = tbl.recordIterator();
             for(int i = 0; i < tbl.getRecordCount(); i++) {
@@ -407,7 +406,7 @@ public class buildDB {
                     System.out.println();
                 }
             }
-        } catch (IOException | CorruptedTableException e) {
+        } catch (CorruptedTableException e) {
             Logger.getLogger(buildDB.class.getName()).log(Level.SEVERE, null, e);
         }
         finally {
@@ -416,9 +415,47 @@ public class buildDB {
         }
     }
     
-    private static void buildOutputDbfTables(double[][] src, Statement out) {
-        
+    private static String loadOutputDbfColumnNames(String[] src) {
+        String sql = "";
+        for(int i = 0; i < src.length; i++) {
+            sql += src[i];
+            if(i == src.length - 1) {
+                sql += ") ";
+            }
+            else {
+                sql += ", ";
+            }
+        }
+        return sql;
     }
+    
+    private static String buildOutputDbfQueries(double[] src, String s) {
+        String sql = s;
+        try {
+            for(int i = 0; i < src.length; i++) {
+                if(src[i] != 0) {
+                    if(src[i] % 1 == 0) {
+                        int val = (int) src[i];
+                    }
+                    else {
+                        double val = src[i];
+                    }
+                }
+            }
+        } catch(Exception  e) {
+            Logger.getLogger(buildDB.class.getName()).log(Level.SEVERE, null, e);
+        }
+        return "";
+    }
+    
+    /**
+     * 
+     * @param args
+     * @throws ClassNotFoundException: Missing the Library for SQLite version of JDBC.
+     * @throws SQLException: Error with Queries made using SQLite.
+     * @throws IOException: File I/O Error when verifying existence of a DBF table.
+     * @throws CorruptedTableException: Verifies the integrity of the input DBF table. 
+     */
     
     public static void main(String[] args) throws ClassNotFoundException, SQLException, IOException {
         Connection cInDb3 = null, cOutput = null;
@@ -428,13 +465,13 @@ public class buildDB {
         try {
             Class.forName("org.sqlite.JDBC");
             
-            cInDb3 = DriverManager.getConnection("jdbc:sqlite:" + inDB + ".db3");
+            cInDb3 = DriverManager.getConnection("jdbc:sqlite:" + inDB);
             cInDb3.setAutoCommit(false);
             inStmtA = cInDb3.createStatement();
             inStmtB = cInDb3.createStatement();
             System.out.println("\nOpened " + inDB + " database successfully");
             
-            cOutput = DriverManager.getConnection("jdbc:sqlite:" + hist + ".db3");
+            cOutput = DriverManager.getConnection("jdbc:sqlite:" + hist);
             cOutput.setAutoCommit(false);
             outStmt = cOutput.createStatement();
             System.out.println("\nConnected established to " + hist + " database successfully");
@@ -457,28 +494,32 @@ public class buildDB {
             
             double[][] src;
             String[] dam = {"ID", "Embankment", "LifeTime"};
-            src = loadDbfTables(new Table(new File(path + dbf_tbls[0])), "Existing", dam);
-            
+            src = loadDbfTables(new Table(new File(dbf_tbls[0].getAbsolutePath())), "Existing", dam);
             for(double[] s: src) {
-                for(int i = 0; i < s.length; i++) {
-                    try {
-                        int val = (int) s[i];
-                        System.out.println(val);
-                    }
-                    catch(NumberFormatException  e) {
-                        System.out.println("error");
-                    }
-                }
+               String sql = "INSERT INTO " + dbf_tbls[0] + "(";
+               sql += loadOutputDbfColumnNames(dam) + "VALUES(";
+               outStmt.executeUpdate(buildOutputDbfQueries(s, sql));
             }
             
             String[] pond = {"ID", "HRU", "Cattles", "ClayLiner", "PlasticLn", "WireFence", "Distance", "Trenching", "Pond_Yrs"};
-            src = loadDbfTables(new Table(new File(path + dbf_tbls[1])), "Existing", pond);
+            src = loadDbfTables(new Table(new File(dbf_tbls[1].getAbsolutePath())), "Existing", pond);
             
             for(double[] s: src) {
                 for(int i = 0; i < s.length; i++) {
                     try {
-                        int val = (int) s[i];
-                        System.out.println(val);
+                        if(s[i] != 0) {
+                            if(s[i] % 1 == 0) {
+                                int val = (int) s[i];
+                                System.out.println(val);
+                            }
+                            else {
+                                double val = s[i];
+                                System.out.println(val);
+                            }
+                            if(i == s.length - 1) {
+                                System.out.println();
+                            }
+                        }
                     }
                     catch(NumberFormatException  e) {
                         System.out.println("error");
@@ -487,7 +528,30 @@ public class buildDB {
             }
             
             String[] graze = {"ID", "Grazing_Ha", "UnitCost"};
-            src = loadDbfTables(new Table(new File(path + dbf_tbls[2])), "Existing", graze);
+            src = loadDbfTables(new Table(new File(dbf_tbls[2].getAbsolutePath())), "Existing", graze);
+            
+            for(double[] s: src) {
+                for(int i = 0; i < s.length; i++) {
+                    try {
+                        if(s[i] != 0) {
+                            if(s[i] % 1 == 0) {
+                                int val = (int) s[i];
+                                System.out.println(val);
+                            }
+                            else {
+                                double val = s[i];
+                                System.out.println(val);
+                            }
+                            if(i == s.length - 1) {
+                               System.out.println();
+                            }
+                        }
+                    }
+                    catch(NumberFormatException  e) {
+                        System.out.println("error");
+                    }
+                }
+            }
                 /*
                 int i = 0;
                 while(i < 26) {
@@ -527,37 +591,6 @@ public class buildDB {
                 i++;
                 }
                 */
-                
-                /** HOLDING POND COST / Lifetime (50)
-                 * double sqrtCattles = Math.Sqrt(Cattles);
-                 * double temp3 = 2.232 * Cattles + 11.338 * sqrtCattles;
-                 * double temp = 3.72 * Cattles + _trenching * 7.94 * sqrtCattles + 0.844 * Distance +
-                 * _clay_liner * temp3;
-                 * 
-                 * double temp2 = (0.5 * 9.5 + 7.47) * temp3;
-                 * 
-                 * double max = 1.38e-10 * Math.Pow(temp,2.0)
-                 * - 5.027e-5 * temp
-                 * + 6.736 + _clay_liner * temp2
-                 * + _plastic_liner / 0.7 * temp2
-                 * + _wire_fence * (189.0 + Math.Sqrt(820.0 * Cattles))
-                 * + 10000.0;
-                 * max *= 1.1483;
-                 * 
-                 * temp3 = 1.512 * Cattles + 9.332 * sqrtCattles;
-                 * temp = 2.52 * Cattles + _trenching * 6.54 * sqrtCattles + 0.844 * Distance +
-                 * _clay_liner * temp3;
-                 * temp2 = (0.5 * 9.5 + 7.47) * temp3;
-                 * double min = 1.38e-10 * Math.Pow(temp, 2.0)
-                 * - 5.027e-5 * temp
-                 * + 6.736 + _clay_liner * temp2
-                 * + _plastic_liner / 0.7 * temp2
-                 * + _wire_fence * (189.0 + Math.Sqrt(556.0 * Cattles))
-                 * + 10000.0;
-                 * min *= 1.1483;
-                 * 
-                 * return min / 2.0 + max / 2.0;
-                 */
                 
                 /** HOLDING POND MAINTENANCE COST
                  *                 double temp = 0.03048 * Math.Pow(Math.Sqrt(1.68 * Cattles) - 6,2.0);
