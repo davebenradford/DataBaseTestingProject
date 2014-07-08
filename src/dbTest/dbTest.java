@@ -12,7 +12,6 @@ public class DbTest {
     private static final String outDB = "base_historic";
     
     public static void main(String args[]) throws ClassNotFoundException, SQLException {
-        
         Connection cInput = null, cOutput = null;
         Statement inStmt = null, outStmt = null;
         ArrayList<String> tables, headers, types;
