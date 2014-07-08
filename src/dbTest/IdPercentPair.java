@@ -1,4 +1,4 @@
-package dbTest;
+package DbTest;
 /**
  * IdPercentPair Class
  * 

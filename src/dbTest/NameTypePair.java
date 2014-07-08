@@ -1,4 +1,4 @@
-package dbTest;
+package DbTest;
 /**
  * NameTypePair Class
  * 

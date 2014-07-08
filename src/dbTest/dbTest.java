@@ -1,10 +1,10 @@
-package dbTest;
+package DbTest;
 
 import java.sql.*;
 import java.util.ArrayList;
 import java.util.Scanner;
 
-public class dbTest {
+public class DbTest {
     
     // In the WEBsInterface, Pass these as parameters.
     

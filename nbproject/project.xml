@@ -13,6 +13,8 @@
         </data>
         <spellchecker-wordlist xmlns="http://www.netbeans.org/ns/spellchecker-wordlist/1">
             <word>ntp</word>
+            <word>sql</word>
+            <word>vals</word>
         </spellchecker-wordlist>
     </configuration>
 </project>
