@@ -391,33 +391,79 @@ public class BuildDB {
      */
     
     private static ValueTypePair[][] loadDbfTables(Table tbl, String existing, String[] columns) throws IOException {
-        ValueTypePair[][] vals = null;
+        ValueTypePair[][] vals = null, temp = null;
+        int entries = 0;
+        boolean first = false;
         try {
             tbl.open(IfNonExistent.ERROR);
-            vals = new ValueTypePair[tbl.getRecordCount()][columns.length];
+            temp = new ValueTypePair[tbl.getRecordCount()][columns.length];
             System.out.println("\nOpened " + tbl.getName() + " database successfully\n");
             
-            Iterator<Record> iter = tbl.recordIterator();
+            Iterator<Record> iterEx = tbl.recordIterator();
             for(int i = 0; i < tbl.getRecordCount(); i++) {
-                Record rec = iter.next();
+                Record rec = iterEx.next();
                 Number exists = rec.getNumberValue(existing);
                 if(exists.intValue() == 1) {
-                    for(int j = 0; j < columns.length; j++) {
-                        Number n = rec.getNumberValue(columns[j]);
-                        vals[i][j] = new ValueTypePair(n.doubleValue(), 0);
-                        System.out.println((int) rec.getTypedValue(columns[j]) + ": OBJECT TYPE NUMBER");
-                        System.out.printf("%.2f", vals[i][j]);
-                        System.out.println(": " + columns[j]);
-                    }
-                    System.out.println();
+                    entries++;
                 }
             }
+            
+            System.out.println();
+            System.out.println(entries + ": Entries");
+            System.out.println();
+            
+            Iterator<Record> iter = tbl.recordIterator();
+            for(int i = 0; i < entries; i++) {
+                Record rec = iter.next();
+                for(int j = 0; j < columns.length; j++) {
+                    Number n = rec.getNumberValue(columns[j]);
+                    if(n.doubleValue() % 1 > 0 || columns[j].equalsIgnoreCase("embankment") || columns[j].equalsIgnoreCase("distance")) {
+                        temp[i][j] = new ValueTypePair(n.doubleValue(), 0);
+                        System.out.printf("%.2f", temp[i][j].getPairValueAsDouble());
+                    }
+                    else {
+                        temp[i][j] = new ValueTypePair((double) n.intValue(), 1);
+                        System.out.print(temp[i][j].getPairValueAsInt());
+                    }
+                    System.out.println(": " + columns[j]);
+                }
+            }
+            System.out.println(temp[0][0].getPairValueAsDouble() + ": TEMP");
+            vals = new ValueTypePair[entries][columns.length];
+            System.arraycopy(temp, 0, vals, 0, vals.length);
         } catch (CorruptedTableException e) {
             Logger.getLogger(BuildDB.class.getName()).log(Level.SEVERE, null, e);
         }
         finally {
             tbl.close();
         }
+        if(tbl.getName().equals("cattle_yard.dbf")) {
+            for(ValueTypePair[] s: temp) {
+                for(int i = 0; i < s.length; i++) {
+                    System.out.println(s.length + ": S LENGTH");
+                    System.out.println(s[i].getPairValueAsInt());
+                    try {
+                        if(s[i].getPairValueAsDouble() != 0) {
+                            if(s[i].getPairValueAsInt() != -1) {
+                                int val = s[i].getPairValueAsInt();
+                                System.out.println(val);
+                            }
+                            else {
+                                double val = s[i].getPairValueAsDouble();
+                                System.out.println(val);
+                            }
+                            if(i == s.length - 1) {
+                                System.out.println();
+                            }
+                        }
+                    }
+                    catch(NumberFormatException e) {
+                        Logger.getLogger(BuildDB.class.getName()).log(Level.SEVERE, null, e);
+                    }
+                }
+            }
+        }
+        System.out.println(vals.length + ": LENGTH OF VALS\n");
         return vals;
     }
     
@@ -452,6 +498,7 @@ public class BuildDB {
         String sql = s;
         try {
             for(int i = 0; i < src.length; i++) {
+                System.out.println(src[i].getPairValueAsDouble()+ ": SOURCE DOUBLE VALUE");
                 if(src[i].getPairValueAsDouble() != 0) {
                     if(i == src.length - 1) {
                         if(src[i].getPairValueAsInt() != -1) {
@@ -531,19 +578,23 @@ public class BuildDB {
                 outStmt.executeUpdate(buildOutputDbfQueries(s, sql));
             }
             
-            for(ValueTypePair[] s: src) {
-                String sql = "INSERT INTO " + tbl_names[9] + "(";
-                String[] sqlNames = {"id", "embankment", "life_time"};
-                sql += loadOutputDbfColumnNames(sqlNames) + " VALUES(";
-                outStmt.executeUpdate(buildOutputDbfQueries(s, sql));
-            }
+            //for(ValueTypePair[] s: src) {
+            //    String sql = "INSERT INTO " + tbl_names[9] + "(";
+            //    String[] sqlNames = {"id", "year", "cost"};
+            //    sql += loadOutputDbfColumnNames(sqlNames) + " VALUES(";
+            //    outStmt.executeUpdate(buildOutputDbfQueries(s, sql));
+            //}
             
             String[] pond = {"ID", "HRU", "Cattles", "ClayLiner", "PlasticLn", "WireFence", "Distance", "Trenching", "Pond_Yrs"};
-            src = loadDbfTables(new Table(new File(dbf_tbls[1].getAbsolutePath())), "Existing", pond);
+            ValueTypePair[][] src2 = loadDbfTables(new Table(new File(dbf_tbls[1].getAbsolutePath())), "Existing", pond);
             
-            for(ValueTypePair[] s: src) {
+            System.out.println(src2[0][0].getPairType() + " TEXT GOES THARRR");
+            
+            for(ValueTypePair[] s: src2) {
                 for(int i = 0; i < s.length; i++) {
+                    System.out.println(src2.length + ": S LENGTH FOR PONDS");
                     try {
+                        System.out.println(s[i].getPairValueAsInt() + ": S @ " + i + " Value as Double");
                         if(s[i].getPairValueAsDouble() != 0) {
                             if(s[i].getPairValueAsInt() != -1) {
                                 int val = s[i].getPairValueAsInt();
@@ -559,7 +610,7 @@ public class BuildDB {
                         }
                     }
                     catch(NumberFormatException e) {
-                        System.out.println(e);
+                        Logger.getLogger(BuildDB.class.getName()).log(Level.SEVERE, null, e);
                     }
                 }
             }

@@ -1,15 +1,13 @@
 package DbTest;
 
-import java.util.logging.Level;
-import java.util.logging.Logger;
-
 /**
  * ValueTypePair Class
  * 
  * @author radfordd
  * 
  * ValueTypePair consists of a value as a Double type and a Data Type for the 
- * value associated with an Int value.
+ * value associated with an Int value. 0 represents a Double primitive type and 
+ * a 1 represents an Integer primitive type.
  */
 class ValueTypePair {
     private double value;
