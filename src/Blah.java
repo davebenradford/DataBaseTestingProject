@@ -34,7 +34,7 @@ public class Blah {
         min *= 1.1483;
 
         double result = min / 2.0 + max / 2.0;
-        double annual = result / 12;
+        double annual = result / 50;
         System.out.printf("%.10f", result);        
         System.out.println(": THIS IS THE ANSWER YOU NEED TO GET");
         System.out.printf("%.10f", annual);
