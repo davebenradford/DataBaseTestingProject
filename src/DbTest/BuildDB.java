@@ -3,6 +3,8 @@ package DbTest;
 import java.io.File;
 import java.io.IOException;
 import java.sql.*;
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -15,15 +17,15 @@ public class BuildDB {
     private static final String hist = "base_historic.db3";
     private static final String conv = "base_conventional.db3";
     private static final String inDB = "spatial.db3";
-    private static final String[] tbl_names = {"crop_economic_farms", "crop_economic_fields", "crop_economic_subbasins", "forage", "forage_hru", "tillage",
+    private static final String[] tbl_names = {"crop_economic_fields", "crop_economic_farms", "crop_economic_subbasins", "forage", "forage_hru", "tillage",
                                                "grazing_hrus", "grazing_economic", "grazing_economic_subbasins", "small_dams_economic", "holding_ponds_economic",
                                                "grazing", "holding_ponds", "small_dams", "tillage_hrus"};
     private static final String[] val_names = {"id", "year", "yield", "revenue", "cost", "net_return", "grazing_ha", "unit_cost", "hru", "cattle",
                                                "clay_liner", "plastic_ln", "wire_fence", "distance", "trenching", "pond_yrs", "annual_cost",
                                                "maintenance", "total_cost", "embankment", "life_time", "tillage"};
     private static final String[] types = {"int", "real"};
-    private static final File[] dbf_tbls = {new File("Data/Spatial/small_dam.dbf"), new File("Data/Spatial/cattle_yard.dbf"), new File("Data/Spatial/grazing.dbf")};
-    // "land2010_by_land_id", "farm2010"
+    private static final File[] dbf_tbls = {new File("Data/Spatial/small_dam.dbf"), new File("Data/Spatial/cattle_yard.dbf"), new File("Data/Spatial/grazing.dbf"),
+                                            new File("Data/Spatial/land2010_by_land_id.dbf"), new File("Data/Spatial/farm2010.dbf")};
     
     /**
      * 
@@ -115,10 +117,10 @@ public class BuildDB {
     private static void buildCropEconFields(Statement in, Statement out, String tbl) {
         try {
             ResultSet inRs = in.executeQuery("SELECT * FROM " + tbl + ";");
-            ResultSet outRs = out.executeQuery("SELECT * FROM " + tbl_names[1] + ";");
+            ResultSet outRs = out.executeQuery("SELECT * FROM " + tbl_names[0] + ";");
             NameTypePair[] ntp = loadInputNamesAndTypes(inRs);
             String outColumnNames = loadSqlOutputColumnNames(outRs);
-            String sql = "INSERT INTO " + tbl_names[1] + "(" + outColumnNames + "VALUES(";
+            String sql = "INSERT INTO " + tbl_names[0] + "(" + outColumnNames + "VALUES(";
             while(inRs.next()) {
                 out.executeUpdate(writeFieldOutputQuery(inRs, ntp, sql, 0));
             }
@@ -146,10 +148,10 @@ public class BuildDB {
         try {
             ResultSet inRsFld = inFld.executeQuery("SELECT * FROM " + tblA + ";");
             ResultSet inRsFrm = inBmp.executeQuery("SELECT * FROM " + tblB + " WHERE farm > 0 ORDER BY farm;");
-            ResultSet outRs = out.executeQuery("SELECT * FROM " + tbl_names[0] + ";");
+            ResultSet outRs = out.executeQuery("SELECT * FROM " + tbl_names[1] + ";");
             NameTypePair[] ntp = loadInputNamesAndTypes(inRsFld);
             String outColumnNames = loadSqlOutputColumnNames(outRs);
-            String sql = "INSERT INTO " + tbl_names[0] + "(" + outColumnNames + "VALUES(";
+            String sql = "INSERT INTO " + tbl_names[1] + "(" + outColumnNames + "VALUES(";
             writeFarmSubbasinOutputQueries(inRsFrm, inFld, tblA, ntp, sql, out, "farm");
         } catch(SQLException e) {
             Logger.getLogger(BuildDB.class.getName()).log(Level.SEVERE, null, e);
@@ -241,6 +243,26 @@ public class BuildDB {
         }
         return outColumnNames;
     }
+    
+    /**
+     * 
+     * @param src: An array containing the Strings with the SQLite column names. 
+     * @return sql: The partial SQL Query String. 
+     */
+    
+    private static String loadDbfOutputColumnNames(String[] src) {
+        String sql = "";
+        for(int i = 0; i < src.length; i++) {
+            sql += src[i];
+            if(i == src.length - 1) {
+                sql += ")";
+            }
+            else {
+                sql += ", ";
+            }
+        }
+        return sql;
+    }
 
     /**
      * @param tbl: Input DBF Formatted Table.
@@ -295,28 +317,8 @@ public class BuildDB {
         }
         finally {
             tbl.close();
-        }
+        } 
         return vals;
-    }
-    
-    /**
-     * 
-     * @param src: An array containing the Strings with the SQLite column names. 
-     * @return sql: The partial SQL Query String. 
-     */
-    
-    private static String loadDbfOutputColumnNames(String[] src) {
-        String sql = "";
-        for(int i = 0; i < src.length; i++) {
-            sql += src[i];
-            if(i == src.length - 1) {
-                sql += ")";
-            }
-            else {
-                sql += ", ";
-            }
-        }
-        return sql;
     }
     
     /**
@@ -352,7 +354,7 @@ public class BuildDB {
         System.out.println(vals.length);
         for(int i = 0; i < vtp.length; i++) {
             for(int j = 0; j < 9; j++) { 
-                vals[i][j] = vtp[i][j];
+                vals[i][j] = new ValueTypePair(vtp[i][j].getPairValueAsDouble(), vtp[i][j].getPairType());
             }
             vals[i][9] = new ValueTypePair(calculatePondBaseCost(
                     vals[i][2].getPairValueAsDouble(), vals[i][3].getPairValueAsDouble(),
@@ -379,11 +381,92 @@ public class BuildDB {
             for(int j = 0; j < 20; j++) {
                 vals[i * 20 + j][0] = vtp[i][0];
                 vals[i * 20 + j][1] = new ValueTypePair(year, 1);
-                vals[i * 20 + j][2] = vtp[i][13];
+                vals[i * 20 + j][2] = vtp[i][12];
                 year++;
             }
         }
         return vals;
+    }
+    
+    /**
+     * 
+     * @param vtp: ValueTypePair Array containing the Grazing data and type values.
+     * @return vals: ValueTypePair Array containing the economic data for the
+     *               grazing areas.
+     */
+    
+    private static ValueTypePair[][] loadGrazingEcon(ValueTypePair[][] vtp) {
+        ValueTypePair[][] vals = new ValueTypePair[vtp.length * 20][3];
+        for(int i = 0; i < vtp.length; i++) {
+            int year = 1991;
+            for(int j = 0; j < 20; j++) {
+                vals[i * 20 + j][0] = new ValueTypePair(vtp[i][0].getPairValueAsDouble(), 1);
+                vals[i * 20 + j][1] = new ValueTypePair(year, 1);
+                vals[i * 20 + j][2] = new ValueTypePair(vtp[i][2].getPairValueAsDouble(), 0);
+                year++;
+            }
+        }
+        return vals;
+    }
+    
+    /**
+     * 
+     * @param vtp: ValueTypePair Array containing the Grazing data and type values.
+     * @return vals: ValueTypePair Array containing the calculated costs for the 
+     *               grazing areas, as UnitCost * Grazing_Ha.
+     */
+    
+    private static ValueTypePair[][] loadGrazing(ValueTypePair[][] vtp) {
+        ValueTypePair[][] vals = new ValueTypePair[vtp.length][4];
+        for(int i = 0; i < vtp.length; i++) {
+            for(int j = 0; j < 3; j++) {
+                vals[i][j] = new ValueTypePair(vtp[i][j].getPairValueAsDouble(), vtp[i][j].getPairType());
+            }
+            vals[i][3] = new ValueTypePair(vals[i][1].getPairValueAsDouble() * vals[i][2].getPairValueAsDouble(), 0);
+        }
+        return vals;
+    }
+    
+    
+    
+    private static ValueTypePair[][] loadGrazingSubbasinSqlData(ValueTypePair[][] vtp, Statement in, Statement out, String tbl) {
+        ValueTypePair[][] vals = new ValueTypePair[8 * 20][3];
+        int[] ids = new int[vtp.length];
+        for(int i = 0; i < ids.length; i++) {
+            ids[i] = vtp[i][0].getPairValueAsInt();
+        }
+        try {
+            ResultSet inRs = in.executeQuery("SELECT * FROM " + tbl + ";");
+            int index = 0;
+            while(inRs.next()) {
+                int num = inRs.getInt(2);
+                int comp = 0;
+                if(num == comp) {
+                    int year = 1991;
+                    for(int i = 0; i < 20; i++) {
+                        vals[index * 20 + i][0] = new ValueTypePair(num, 1);
+                        vals[index * 20 + i][1] = new ValueTypePair(year, 1);
+                        vals[index * 20 + i][2] = new ValueTypePair(vtp[index][2].getPairValueAsDouble(), 0);
+                        System.out.println(vals[index * 20 + i][0].getPairValueAsInt() + ": id");
+                        System.out.println(vals[index * 20 + i][1].getPairValueAsInt() + ": year");
+                        System.out.println(vals[index * 20 + i][2].getPairValueAsDouble() + ": cost");
+                        year++;
+                    }
+                }
+                else {
+                    System.out.println("DUPLICATE FOUND");
+                }
+            }
+        } catch (SQLException ex) {
+            Logger.getLogger(BuildDB.class.getName()).log(Level.SEVERE, null, ex);
+        }
+        return vals;
+    }
+    
+    
+    
+    private static int loadGrazingHruSqlData() {
+        return 0;
     }
     
     /**
@@ -408,7 +491,7 @@ public class BuildDB {
      * @return Calculated Base Cost of Holding Pond.
      */
     
-    private static double calculatePondBaseCost(double catl, double clay, double trch, double dist, double wire, double plst) {
+    private static double calculatePondBaseCost(double catl, double clay, double plst, double wire, double dist, double trch) {
         double sqrtC = Math.sqrt(catl);
         double eqn1 = 2.232 * catl + 11.338 * sqrtC;
         double eqn2 = 3.72 * catl + trch * 7.94 * sqrtC + 0.844 * dist + clay * eqn1;
@@ -599,23 +682,20 @@ public class BuildDB {
         String sql = s;
         try {
             for(int i = 0; i < src.length; i++) {
-                System.out.println(src[i].getPairValueAsDouble()+ ": SOURCE DOUBLE VALUE");
-                if(src[i].getPairValueAsDouble() != 0) {
-                    if(i == src.length - 1) {
-                        if(src[i].getPairValueAsInt() != -1) {
-                            sql += src[i].getPairValueAsInt() + ")";
-                        }
-                        else {
-                            sql += src[i].getPairValueAsDouble() + ")";
-                        }
+                if(i == src.length - 1) {
+                    if(src[i].getPairValueAsInt() != -1) {
+                        sql += src[i].getPairValueAsInt() + ")";
                     }
                     else {
-                        if(src[i].getPairValueAsInt() != -1) {
-                            sql += src[i].getPairValueAsInt() + ",";
-                        }
-                        else {
-                            sql += src[i].getPairValueAsDouble() + ",";
-                        }
+                        sql += src[i].getPairValueAsDouble() + ")";
+                    }
+                }
+                else {
+                    if(src[i].getPairValueAsInt() != -1) {
+                        sql += src[i].getPairValueAsInt() + ",";
+                    }
+                    else {
+                        sql += src[i].getPairValueAsDouble() + ",";
                     }
                 }
             }
@@ -642,35 +722,33 @@ public class BuildDB {
 
         Connection cOutput = DriverManager.getConnection("jdbc:sqlite:" + hist);
         cOutput.setAutoCommit(false);
-        System.out.println("\nConnected established to " + hist + " database successfully");
+        System.out.println("\nConnection established to " + hist + " database successfully");
         
         try {
             Statement inStmtA = cInDb3.createStatement();
             Statement inStmtB = cInDb3.createStatement();
             Statement outStmt = cOutput.createStatement();
-
-            boolean isDouble = false;
-            int index;
             
             createTables(inStmtA, outStmt);
             System.out.println("\n" + hist + " database created successfully");
             
-            String tbl = "yield_historic";
-            buildCropEconFields(inStmtA, outStmt, tbl);
+            String tblA = "yield_historic"; // Parameter for Historical or Conventional
+            buildCropEconFields(inStmtA, outStmt, tblA);
             cOutput.commit();
-            System.out.println("\ncrop_economic_fields database created successfully");
-            String tblB = "field_farm";
-            buildCropEconFarms(inStmtA, inStmtB, outStmt, tbl, tblB);
+            System.out.println("\n" + tbl_names[0] + " database created successfully");
+            
+            String tblB = "field_farm"; // Hard Coded
+            buildCropEconFarms(inStmtA, inStmtB, outStmt, tblA, tblB);
             cOutput.commit();
-            System.out.println("\ncrop_economic_farms database created successfully");
-            tblB = "field_subbasin";
-            buildCropEconSubbasins(inStmtA, inStmtB, outStmt, tbl, tblB);
+            System.out.println("\n" + tbl_names[1] +  " database created successfully");
+            
+            tblB = "field_subbasin"; // Hard Coded
+            buildCropEconSubbasins(inStmtA, inStmtB, outStmt, tblA, tblB);
             cOutput.commit();
-            System.out.println("\ncrop_economic_subbasins database created successfully");
+            System.out.println("\n" + tbl_names[2] + " database created successfully");
             
             ValueTypePair[][] src;
-            String[] dam = {"ID", "Embankment", "LifeTime"};
-            src = loadDbfTableData(new Table(new File(dbf_tbls[0].getAbsolutePath())), "Existing", dam);
+            src = loadDbfTableData(new Table(new File(dbf_tbls[0].getAbsolutePath())), "Existing", new String[]{"ID", "Embankment", "LifeTime"});
             
             for(ValueTypePair[] s: src) {
                 String sql = "INSERT INTO " + tbl_names[13] + "(";
@@ -679,7 +757,7 @@ public class BuildDB {
                 outStmt.executeUpdate(writeDbfOutputQueries(s, sql));
             }
             cOutput.commit();
-            System.out.println("\n" + tbl_names[13] + "database created successfully");
+            System.out.println("\n" + tbl_names[13] + " database created successfully");
             
             src = loadSmallDamEconCosts(src);
             
@@ -690,11 +768,10 @@ public class BuildDB {
                 outStmt.executeUpdate(writeDbfOutputQueries(s, sql));
             }
             cOutput.commit();
-            System.out.println("\n" + tbl_names[9] + "database created successfully");
+            System.out.println("\n" + tbl_names[9] + " database created successfully");
             
-            String[] pond = {"ID", "HRU", "Cattles", "ClayLiner", "PlasticLn",
-                             "WireFence", "Distance", "Trenching", "Pond_Yrs"};
-            src = loadDbfTableData(new Table(new File(dbf_tbls[1].getAbsolutePath())), "Existing", pond);
+            src = loadDbfTableData(new Table(new File(dbf_tbls[1].getAbsolutePath())), "Existing", new String[]{"ID", "HRU",
+                                   "Cattles", "ClayLiner", "PlasticLn", "WireFence", "Distance", "Trenching", "Pond_Yrs"});
             src = loadPondCosts(src);
             
             for(ValueTypePair[] s: src) {
@@ -704,11 +781,11 @@ public class BuildDB {
                                      val_names[13], val_names[14], val_names[15],
                                      val_names[4], val_names[16], val_names[17],
                                      val_names[18]};
-                sql += loadDbfOutputColumnNames(sqlNames) + " VALUES(";
+                sql += loadDbfOutputColumnNames(sqlNames) + " VALUES("; // Replace ColumnNames with SQL
                 outStmt.executeUpdate(writeDbfOutputQueries(s, sql));
             }
             cOutput.commit();
-            System.out.println("\n" + tbl_names[12] + "database created successfully");
+            System.out.println("\n" + tbl_names[12] + " database created successfully");
             
             src = loadPondEcon(src);
             
@@ -719,40 +796,73 @@ public class BuildDB {
                 outStmt.executeUpdate(writeDbfOutputQueries(s, sql));
             }
             cOutput.commit();
-            System.out.println("\n" + tbl_names[10] + "database created successfully");
+            System.out.println("\n" + tbl_names[10] + " database created successfully");
             
-            String[] graze = {"ID", "Grazing_Ha", "UnitCost"};
-            src = loadDbfTableData(new Table(new File(dbf_tbls[2].getAbsolutePath())), "Existing", graze);
+            src = loadDbfTableData(new Table(new File(dbf_tbls[2].getAbsolutePath())), "Existing", new String[]{"ID", "Grazing_Ha", "UnitCost"});
+            src = loadGrazing(src);
             
             for(ValueTypePair[] s: src) {
-                for(int i = 0; i < s.length; i++) {
-                    try {
-                        if(s[i].getPairValueAsDouble() != 0) {
-                            if(s[i].getPairValueAsInt() != -1) {
-                                int val = s[i].getPairValueAsInt();
-                                System.out.println(val);
-                            }
-                            else {
-                                double val = s[i].getPairValueAsDouble();
-                                System.out.println(val);
-                            }
-                            if(i == s.length - 1) {
-                                System.out.println();
-                            }
-                        }
-                    }
-                    catch(NumberFormatException e) {
-                        Logger.getLogger(BuildDB.class.getName()).log(Level.SEVERE, null, e);
-                    }
-                }
+                String sql = "INSERT INTO " + tbl_names[11] + "(";
+                String[] sqlNames = {val_names[0], val_names[6], val_names[7], val_names[4]};
+                sql += loadDbfOutputColumnNames(sqlNames) + " VALUES(";
+                outStmt.executeUpdate(writeDbfOutputQueries(s, sql));
             }
-            // GRAZING COST = UNIT COST * AREA from DBF
+            cOutput.commit();
+            System.out.println("\n" + tbl_names[11] + " database created successfully");
+            
+            src = loadGrazingEcon(src);
+            
+            buildDbfTables(src, outStmt, cOutput);
+            
+            tblB = "subbasin_grazing";
+            src = loadGrazingSubbasinSqlData(src, inStmtA, outStmt, tblB);
+            
+            testPrint(src);
+
             cOutput.commit();
         } catch(SQLException e) {
             Logger.getLogger(BuildDB.class.getName()).log(Level.SEVERE, null, e);
         } finally {
             cOutput.close();
             cInDb3.close();
+        }
+    }
+
+    private static void buildDbfTables(ValueTypePair[][] src, Statement out, Connection c) {
+        try {
+            for(ValueTypePair[] s: src) {
+                String sql = "INSERT INTO " + tbl_names[7] + "(";
+                String[] sqlNames = {val_names[0], val_names[1], val_names[4]};
+                sql += loadDbfOutputColumnNames(sqlNames) + " VALUES(";
+                out.executeUpdate(writeDbfOutputQueries(s, sql));
+            }
+            c.commit();
+            System.out.println("\n" + tbl_names[7] + " database created successfully");
+        } catch (SQLException ex) {
+            Logger.getLogger(BuildDB.class.getName()).log(Level.SEVERE, null, ex);
+        }
+    }
+
+    private static void testPrint(ValueTypePair[][] src) {
+        for(ValueTypePair[] s: src) {
+            for(int i = 0; i < s.length; i++) {
+                try {
+                    if(s[i].getPairValueAsInt() != -1) {
+                        int val = s[i].getPairValueAsInt();
+                        System.out.println(val);
+                    }
+                    else {
+                        double val = s[i].getPairValueAsDouble();
+                        System.out.println(val);
+                    }
+                    if(i == s.length - 1) {
+                        System.out.println();
+                    }
+                }
+                catch(NumberFormatException e) {
+                    Logger.getLogger(BuildDB.class.getName()).log(Level.SEVERE, null, e);
+                }
+            }
         }
     }
 }
