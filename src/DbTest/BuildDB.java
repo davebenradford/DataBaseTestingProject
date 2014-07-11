@@ -3,9 +3,12 @@ package DbTest;
 import java.io.File;
 import java.io.IOException;
 import java.sql.*;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.List;
+import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import nl.knaw.dans.common.dbflib.CorruptedTableException;
@@ -429,36 +432,62 @@ public class BuildDB {
     
     
     
-    private static ValueTypePair[][] loadGrazingSubbasinSqlData(ValueTypePair[][] vtp, Statement in, Statement out, String tbl) {
-        ValueTypePair[][] vals = new ValueTypePair[8 * 20][3];
-        int[] ids = new int[vtp.length];
-        for(int i = 0; i < ids.length; i++) {
-            ids[i] = vtp[i][0].getPairValueAsInt();
+    private static ValueTypePair[][] loadGrazingSubbasinSqlData(ValueTypePair[][] vtp, Statement inA, Statement inB, String tblA, String tblB) {
+        IdPercentPair[] temp = new IdPercentPair[8];
+        ValueTypePair[][] vals = new ValueTypePair[temp.length * 20][3];
+        HashSet ids = new HashSet(), subs = new HashSet();
+        for (ValueTypePair[] v : vtp) {
+            ids.add(v[0].getPairValueAsInt());
         }
         try {
-            ResultSet inRs = in.executeQuery("SELECT * FROM " + tbl + ";");
+            ResultSet sRs = inA.executeQuery("SELECT * FROM " + tblA + " ORDER BY grazing;");
+            ResultSet aRs = inB.executeQuery("SELECT * FROM " + tblB + ";");
             int index = 0;
-            while(inRs.next()) {
-                int num = inRs.getInt(2);
-                int comp = 0;
-                if(num == comp) {
-                    int year = 1991;
-                    for(int i = 0; i < 20; i++) {
-                        vals[index * 20 + i][0] = new ValueTypePair(num, 1);
-                        vals[index * 20 + i][1] = new ValueTypePair(year, 1);
-                        vals[index * 20 + i][2] = new ValueTypePair(vtp[index][2].getPairValueAsDouble(), 0);
-                        System.out.println(vals[index * 20 + i][0].getPairValueAsInt() + ": id");
-                        System.out.println(vals[index * 20 + i][1].getPairValueAsInt() + ": year");
-                        System.out.println(vals[index * 20 + i][2].getPairValueAsDouble() + ": cost");
-                        year++;
+            while(sRs.next()) {
+                int subId = sRs.getInt(1);
+                System.out.println(subId + " :Subbasin ID");
+                int grzId = sRs.getInt(2);
+                System.out.println(grzId + " :Grazing ID");
+                if(ids.contains(grzId)) {
+                    sRs = inA.executeQuery("SELECT * FROM " + tblA + " WHERE subbasin = " + subId + ";");
+                    while(sRs.next()) {
+                        
+                    }
+                    if(subs.contains(subId)) {
+                    }
+                    else {
+                        subs.add(subId);
+                        int year = 1991;
+                        int j = 0;
+                        boolean found = false;
+                        for(int i = 0; i < 20; i++) {
+                            vals[index * 20 + i][0] = new ValueTypePair(subId, 1);
+                            vals[index * 20 + i][1] = new ValueTypePair(year, 1);
+                            if(i == 0) {
+                                while(!found) {
+                                    if(vtp[j][0].getPairValueAsInt() == grzId) {
+                                        vals[index * 20 + i][2] = new ValueTypePair(vtp[j][2].getPairValueAsDouble(), 0);
+                                        found = true;
+                                    }
+                                    else {
+                                        j++;
+                                    }
+                                }
+                            }
+                            else {
+                                vals[index * 20 + i][2] = new ValueTypePair(vtp[j][2].getPairValueAsDouble(), 0);
+                            }
+                            System.out.println(vals[index * 20 + i][0].getPairValueAsInt() + ": id");
+                            System.out.println(vals[index * 20 + i][1].getPairValueAsInt() + ": year");
+                            System.out.println(vals[index * 20 + i][2].getPairValueAsDouble() + ": cost");
+                            year++;
+                        }
+                        index++;
                     }
                 }
-                else {
-                    System.out.println("DUPLICATE FOUND");
-                }
             }
-        } catch (SQLException ex) {
-            Logger.getLogger(BuildDB.class.getName()).log(Level.SEVERE, null, ex);
+        } catch (SQLException e) {
+            Logger.getLogger(BuildDB.class.getName()).log(Level.SEVERE, null, e);
         }
         return vals;
     }
@@ -810,12 +839,23 @@ public class BuildDB {
             cOutput.commit();
             System.out.println("\n" + tbl_names[11] + " database created successfully");
             
-            src = loadGrazingEcon(src);
-            
-            buildDbfTables(src, outStmt, cOutput);
+            buildDbfTables(loadGrazingEcon(src), outStmt, cOutput);
             
             tblB = "subbasin_grazing";
-            src = loadGrazingSubbasinSqlData(src, inStmtA, outStmt, tblB);
+            String tblC = "grazing_area";
+            src = loadGrazingSubbasinSqlData(src, inStmtA, inStmtB, tblB, tblC);
+            
+            testPrint(src);
+            
+            buildDbfTables(src, outStmt, cOutput);
+            for(ValueTypePair[] s: src) {
+                String sql = "INSERT INTO " + tbl_names[8] + "(";
+                String[] sqlNames = {val_names[0], val_names[1], val_names[4]};
+                sql += loadDbfOutputColumnNames(sqlNames) + " VALUES(";
+                outStmt.executeUpdate(writeDbfOutputQueries(s, sql));
+            }
+            cOutput.commit();
+            System.out.println("\n" + tbl_names[8] + " database created successfully");
             
             testPrint(src);
 
