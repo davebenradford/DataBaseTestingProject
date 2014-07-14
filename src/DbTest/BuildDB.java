@@ -3,12 +3,8 @@ package DbTest;
 import java.io.File;
 import java.io.IOException;
 import java.sql.*;
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.List;
-import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import nl.knaw.dans.common.dbflib.CorruptedTableException;
@@ -432,16 +428,16 @@ public class BuildDB {
     
     
     
-    private static ValueTypePair[][] loadGrazingSubbasinSqlData(ValueTypePair[][] vtp, Statement inA, Statement inB, String tblA, String tblB) {
-        IdPercentPair[] temp = new IdPercentPair[8];
+    private static ValueTypePair[][] loadGrazingSubbasinSqlData(ValueTypePair[][] vtp, Statement inA, Statement inB, String subGrz, String grzArea) {
+        IdValuePair[] temp = new IdValuePair[vtp.length];
         ValueTypePair[][] vals = new ValueTypePair[temp.length * 20][3];
         HashSet ids = new HashSet(), subs = new HashSet();
         for (ValueTypePair[] v : vtp) {
             ids.add(v[0].getPairValueAsInt());
         }
         try {
-            ResultSet sRs = inA.executeQuery("SELECT * FROM " + tblA + " ORDER BY grazing;");
-            ResultSet aRs = inB.executeQuery("SELECT * FROM " + tblB + ";");
+            ResultSet sRs = inA.executeQuery("SELECT * FROM " + subGrz + " ORDER BY grazing;");
+            ResultSet aRs = inB.executeQuery("SELECT * FROM " + grzArea + ";");
             int index = 0;
             while(sRs.next()) {
                 int subId = sRs.getInt(1);
@@ -449,13 +445,13 @@ public class BuildDB {
                 int grzId = sRs.getInt(2);
                 System.out.println(grzId + " :Grazing ID");
                 if(ids.contains(grzId)) {
-                    sRs = inA.executeQuery("SELECT * FROM " + tblA + " WHERE subbasin = " + subId + ";");
-                    while(sRs.next()) {
-                        
-                    }
                     if(subs.contains(subId)) {
                     }
                     else {
+                        sRs = inA.executeQuery("SELECT * FROM " + subGrz + " WHERE subbasin = " + subId + ";");
+                        while(sRs.next()) {
+                            
+                        }
                         subs.add(subId);
                         int year = 1991;
                         int j = 0;
@@ -634,29 +630,29 @@ public class BuildDB {
                     }
                     else {
                         ResultSet rsField = in.executeQuery("SELECT * FROM " + rsBmp.getMetaData().getTableName(1) + " WHERE " + bmp + " = " + rsBmp.getInt(2) + ";");
-                        IdPercentPair[] ipp = null, temp = null;
+                        IdValuePair[] ivp = null, temp = null;
                         int index = 0;
                         while(rsField.next()) {
-                            if(ipp == null) {
-                                ipp = new IdPercentPair[1];
-                                temp = new IdPercentPair[1];
-                                ipp[index] = new IdPercentPair(rsField.getInt("field"), rsField.getDouble("percent"));
-                                temp[index] = new IdPercentPair();
+                            if(ivp == null) {
+                                ivp = new IdValuePair[1];
+                                temp = new IdValuePair[1];
+                                ivp[index] = new IdValuePair(rsField.getInt("field"), rsField.getDouble("percent"));
+                                temp[index] = new IdValuePair();
                                 index++;
                             }
                             else {
-                                temp = new IdPercentPair[ipp.length];
-                                System.arraycopy(ipp, 0, temp, 0, temp.length);
-                                ipp = new IdPercentPair[temp.length + 1];
-                                System.arraycopy(temp, 0, ipp, 0, temp.length);
-                                ipp[index] = new IdPercentPair(rsField.getInt("field"), rsField.getDouble("percent"));
+                                temp = new IdValuePair[ivp.length];
+                                System.arraycopy(ivp, 0, temp, 0, temp.length);
+                                ivp = new IdValuePair[temp.length + 1];
+                                System.arraycopy(temp, 0, ivp, 0, temp.length);
+                                ivp[index] = new IdValuePair(rsField.getInt("field"), rsField.getDouble("percent"));
                                 index++;
                             }
                         }
                         double[][] bmpPercentTotals = new double[20][5];
-                        for (IdPercentPair ipp1 : ipp) {
+                        for (IdValuePair ivp1 : ivp) {
                             int i = 0;
-                            rsField = in.executeQuery("SELECT * FROM " + tbl + " WHERE field = " + ipp1.getPairId() + ";");
+                            rsField = in.executeQuery("SELECT * FROM " + tbl + " WHERE field = " + ivp1.getPairId() + ";");
                             while(rsField.next()) {
                                 try {
                                     for(int j = 1; j < rsField.getMetaData().getColumnCount(); j++) {
@@ -664,7 +660,7 @@ public class BuildDB {
                                             bmpPercentTotals[i][j - 1] = rsField.getInt(ntp[j].getPairName());
                                         }
                                         else {
-                                            bmpPercentTotals[i][j - 1] += rsField.getDouble(ntp[j].getPairName()) * ipp1.getPairPercent();
+                                            bmpPercentTotals[i][j - 1] += rsField.getDouble(ntp[j].getPairName()) * ivp1.getPairValue();
                                         }
 
                                     }
@@ -766,13 +762,11 @@ public class BuildDB {
             cOutput.commit();
             System.out.println("\n" + tbl_names[0] + " database created successfully");
             
-            String tblB = "field_farm"; // Hard Coded
-            buildCropEconFarms(inStmtA, inStmtB, outStmt, tblA, tblB);
+            buildCropEconFarms(inStmtA, inStmtB, outStmt, tblA, "field_farm");
             cOutput.commit();
             System.out.println("\n" + tbl_names[1] +  " database created successfully");
-            
-            tblB = "field_subbasin"; // Hard Coded
-            buildCropEconSubbasins(inStmtA, inStmtB, outStmt, tblA, tblB);
+                       
+            buildCropEconSubbasins(inStmtA, inStmtB, outStmt, tblA, "field_subbasin");
             cOutput.commit();
             System.out.println("\n" + tbl_names[2] + " database created successfully");
             
@@ -841,9 +835,7 @@ public class BuildDB {
             
             buildDbfTables(loadGrazingEcon(src), outStmt, cOutput);
             
-            tblB = "subbasin_grazing";
-            String tblC = "grazing_area";
-            src = loadGrazingSubbasinSqlData(src, inStmtA, inStmtB, tblB, tblC);
+            src = loadGrazingSubbasinSqlData(src, inStmtA, inStmtB, "subbasin_grazing", "grazing_area");
             
             testPrint(src);
             
