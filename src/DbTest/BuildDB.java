@@ -1,5 +1,23 @@
 package DbTest;
 
+/**
+ *
+ * @author Dave Radford
+ * @since May 2014
+ * @version 0.09
+ * 
+ * Scenario Builder for WEBs Interface
+ * 
+ * This class executes the necessary code to build the SQLite database files
+ * used by the STC project. The database files (.db3) are able to be manipulated
+ * through Java using the Java Database Connectivity (JDBC) library.
+ * 
+ * Project Version History
+ * 
+ * v0.09: Creation of the ScenarioBuilder class.
+ * 
+ */
+
 import java.io.File;
 import java.io.IOException;
 import java.sql.*;
@@ -301,7 +319,7 @@ public class BuildDB {
         try {
             tbl.open(IfNonExistent.ERROR);
             temp = new ValueTypePair[tbl.getRecordCount()][columns.length];
-            System.out.println("\nOpened " + tbl.getName() + " database successfully\n");
+            System.out.println("\nOpened " + tbl.getName() + " database successfully");
             
             Iterator<Record> iter = tbl.recordIterator();
             for(int i = 0; i < tbl.getRecordCount(); i++) {
@@ -312,21 +330,16 @@ public class BuildDB {
                         Number n = rec.getNumberValue(columns[j]);
                         if(n.doubleValue() % 1 > 0 || columns[j].equalsIgnoreCase("embankment") || columns[j].equalsIgnoreCase("distance")) {
                             temp[entries][j] = new ValueTypePair(n.doubleValue(), 0);
-                            System.out.printf("%.2f", temp[entries][j].getPairValueAsDouble());
                         }
                         else {
                             temp[entries][j] = new ValueTypePair((double) n.intValue(), 1);
-                            System.out.print(temp[entries][j].getPairValueAsInt());
                         }
-                        System.out.println(": " + columns[j]);
                     }
-                    System.out.println();
                     entries++;
                 }
             }
             vals = new ValueTypePair[entries][columns.length];
             System.arraycopy(temp, 0, vals, 0, vals.length);
-            System.out.println(vals.length + ": LENGTH OF VALS\n");
         } catch (CorruptedTableException e) {
             Logger.getLogger(BuildDB.class.getName()).log(Level.SEVERE, null, e);
         }
@@ -366,7 +379,6 @@ public class BuildDB {
     
     private static ValueTypePair[][] loadPondCosts(ValueTypePair[][] vtp) {
         ValueTypePair[][] vals = new ValueTypePair[vtp.length][13];
-        System.out.println(vals.length);
         for(int i = 0; i < vtp.length; i++) {
             for(int j = 0; j < 9; j++) { 
                 vals[i][j] = new ValueTypePair(vtp[i][j].getPairValueAsDouble(), vtp[i][j].getPairType());
