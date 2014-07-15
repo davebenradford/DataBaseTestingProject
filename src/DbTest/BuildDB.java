@@ -16,31 +16,31 @@ public class BuildDB {
     private static final String hist = "base_historic.db3";
     private static final String conv = "base_conventional.db3";
     private static final String inDB = "spatial.db3";
-    private static final String[] tbl_names = {"crop_economic_fields", "crop_economic_farms", "crop_economic_subbasins", "forage", "forage_hru", "tillage",
-                                               "grazing_hrus", "grazing_economic", "grazing_economic_subbasins", "small_dams_economic", "holding_ponds_economic",
-                                               "grazing", "holding_ponds", "small_dams", "tillage_hrus"};
-    private static final String[] val_names = {"id", "year", "yield", "revenue", "cost", "net_return", "grazing_ha", "unit_cost", "hru", "cattle",
-                                               "clay_liner", "plastic_ln", "wire_fence", "distance", "trenching", "pond_yrs", "annual_cost",
-                                               "maintenance", "total_cost", "embankment", "life_time", "tillage"};
-    private static final String[] types = {"int", "real"};
     private static final File[] dbf_tbls = {new File("Data/Spatial/small_dam.dbf"), new File("Data/Spatial/cattle_yard.dbf"), new File("Data/Spatial/grazing.dbf"),
                                             new File("Data/Spatial/land2010_by_land_id.dbf"), new File("Data/Spatial/farm2010.dbf")};
     
     /**
      * 
-     * @param in: Input Statement Call. This contains the Connection to the Input SQLite3 DB file.
-     * @param out: Output Statement Call. This contains the Connection to the Output SQLite3 DB file.  
+     * @param out: Output Statement Call. This contains the Connection to the Output SQLite3 DB file.
+     * @param c: Connection to the Output SQL Database.
      */
     
-    private static void createTables(Statement in, Statement out) {
+    private static void createTables(Statement out, Connection c) {
+        final String[] tbl_names = {"crop_economic_fields", "crop_economic_farms", "crop_economic_subbasins", "forage", "forage_hru",
+                                    "tillage", "grazing_hrus", "grazing_economic", "grazing_economic_subbasins", "small_dams_economic",
+                                    "holding_ponds_economic", "grazing", "holding_ponds", "small_dams", "tillage_hrus"};
+        final String[] val_names = {"id", "year", "yield", "revenue", "cost", "net_return", "grazing_ha", "unit_cost", "hru",
+                                    "cattle", "clay_liner", "plastic_ln", "wire_fence", "distance", "trenching", "pond_yrs",
+                                    "annual_cost", "maintenance", "total_cost", "embankment", "life_time", "tillage"};
+        final String[] val_types = {"int", "real"};
         try {
             int i = 1, t = 1;
             for (String tbl: tbl_names) {
                 String sql = "CREATE TABLE IF NOT EXISTS " + tbl + "(";
                 switch(i) {
                     case 1:
-                        sql += val_names[0] + " " + types[0] + ", " + val_names[1] + " " + types[0] + ", " + val_names[2] + " " + types[1] + ", "
-                             + val_names[3] + " " + types[1] + ", " + val_names[4] + " " + types[1] + ", " + val_names[5] + " " + types[1] + ");";
+                        sql += val_names[0] + " " + val_types[0] + ", " + val_names[1] + " " + val_types[0] + ", " + val_names[2] + " " + val_types[1] + ", "
+                             + val_names[3] + " " + val_types[1] + ", " + val_names[4] + " " + val_types[1] + ", " + val_names[5] + " " + val_types[1] + ");";
                         t++;
                         if(t > 3) {
                             i++;
@@ -48,7 +48,7 @@ public class BuildDB {
                         }
                         break;
                     case 2:
-                        sql += val_names[0] + " " + types[0] + ");";
+                        sql += val_names[0] + " " + val_types[0] + ");";
                         t++;
                         if(t > 4) {
                             i++;
@@ -56,7 +56,7 @@ public class BuildDB {
                         }
                         break;
                     case 3:
-                        sql += val_names[0] + " " + types[0] + ", " + val_names[1] + " " + types[0] + ", " + val_names[4] + " " + types[1] + ");";
+                        sql += val_names[0] + " " + val_types[0] + ", " + val_names[1] + " " + val_types[0] + ", " + val_names[4] + " " + val_types[1] + ");";
                         t++;
                         if(t > 4) {
                             i++;
@@ -64,23 +64,23 @@ public class BuildDB {
                         }
                         break;
                     case 4:
-                        sql += val_names[0] + " " + types[0] + ", " + val_names[6] + " " + types[1] + ", " + val_names[7] + " " + types[1] + ", " + val_names[4] + " " + types[1] + ");";
+                        sql += val_names[0] + " " + val_types[0] + ", " + val_names[6] + " " + val_types[1] + ", " + val_names[7] + " " + val_types[1] + ", " + val_names[4] + " " + val_types[1] + ");";
                         i++;
                         break;
                     case 5:
-                        sql += val_names[0] + " " + types[0] + ", " + val_names[8] + " " + types[0] + ", " + val_names[9] + " " + types[1] + ", "
-                            + val_names[10] + " " + types[1] + ", " + val_names[11] + " " + types[1] + ", " + val_names[12] + " " + types[1] + ", "
-                            + val_names[13] + " " + types[1] + ", " + val_names[14] + " " + types[1] + ", " + val_names[15] + " " + types[1] + ", "
-                             + val_names[4] + " " + types[1] + ", " + val_names[16] + " " + types[1] + ", " + val_names[17] + " " + types[1] + ", "
-                            + val_names[18] + " " + types[1] + ");";
+                        sql += val_names[0] + " " + val_types[0] + ", " + val_names[8] + " " + val_types[0] + ", " + val_names[9] + " " + val_types[1] + ", "
+                            + val_names[10] + " " + val_types[1] + ", " + val_names[11] + " " + val_types[1] + ", " + val_names[12] + " " + val_types[1] + ", "
+                            + val_names[13] + " " + val_types[1] + ", " + val_names[14] + " " + val_types[1] + ", " + val_names[15] + " " + val_types[1] + ", "
+                             + val_names[4] + " " + val_types[1] + ", " + val_names[16] + " " + val_types[1] + ", " + val_names[17] + " " + val_types[1] + ", "
+                            + val_names[18] + " " + val_types[1] + ");";
                         i++;
                         break;
                     case 6:
-                        sql += val_names[0] + " " + types[0] + ", " + val_names[19] + " " + types[1] + ", " + val_names[20] + " " + types[0] + ");";
+                        sql += val_names[0] + " " + val_types[0] + ", " + val_names[19] + " " + val_types[1] + ", " + val_names[20] + " " + val_types[0] + ");";
                         i++;
                         break;
                     case 7:
-                        sql += val_names[0] + " " + types[0] + ", " + val_names[21] + " " + types[0] + ");";
+                        sql += val_names[0] + " " + val_types[0] + ", " + val_names[21] + " " + val_types[0] + ");";
                         i++;
                         break;
                     default:
@@ -95,6 +95,8 @@ public class BuildDB {
                     out.executeUpdate(sql);
                 }
             }
+            c.commit();
+            System.out.println("\n" + hist + " database created successfully");
         } catch (SQLException ex) {
             Logger.getLogger(BuildDB.class.getName()).log(Level.SEVERE, null, ex);
         }
@@ -110,26 +112,30 @@ public class BuildDB {
      *             For all subsequent fillTableX functions, in refers to the Output connection. Any
      *             variables having the prefix 'out' are used in relation to values taken from/written to the output table
      *             via the output DB connection. 
-     * @param tbl: Name of the Input Table called yield_historic from the SQLite3 DB.
+     * @param inTbl: Name of the Input Table called yield_historic from the SQLite3 DB.
+     * @param outTbl: crop_economic_fields Output SQL Table.
+     * @param c: Connection to the Output SQL Database.
      */
     
-    private static void buildCropEconFields(Statement in, Statement out, String tbl) {
+    private static void buildCropEconFields(Statement in, Statement out, String inTbl, String outTbl, Connection c) {
         try {
-            ResultSet inRs = in.executeQuery("SELECT * FROM " + tbl + ";");
-            ResultSet outRs = out.executeQuery("SELECT * FROM " + tbl_names[0] + ";");
+            ResultSet inRs = in.executeQuery("SELECT * FROM " + inTbl + ";");
+            ResultSet outRs = out.executeQuery("SELECT * FROM " + outTbl + ";");
             NameTypePair[] ntp = loadInputNamesAndTypes(inRs);
-            String outColumnNames = loadSqlOutputColumnNames(outRs);
-            String sql = "INSERT INTO " + tbl_names[0] + "(" + outColumnNames + "VALUES(";
+            String outColumnNames = loadOutputColumnNames(outRs);
+            String sql = "INSERT INTO " + outTbl + "(" + outColumnNames + "VALUES(";
             while(inRs.next()) {
                 out.executeUpdate(writeFieldOutputQuery(inRs, ntp, sql, 0));
             }
+            c.commit();
+            System.out.println("\n" + outTbl + " database created successfully");
         } catch (SQLException e) {
             Logger.getLogger(BuildDB.class.getName()).log(Level.SEVERE, null, e); 
         }
     }
     
     /**
-     * 
+     *
      * @param inFld: Input Statement for the yield_historic SQL Table. Referred
      *               to as Fld since it is used to build crop_Economic_Fields
      *               table. Additionally, each farm/subbasin is comprised of the
@@ -139,19 +145,23 @@ public class BuildDB {
      *               used to build the output SQL Tables. Farm and Subbasin are
      *               built using the same functions.
      * @param out: Output Statement Call.
-     * @param tblA: yield_historic SQL Table.
-     * @param tblB: field_farm SQL Table.
+     * @param inTblA: yield_historic SQL Table.
+     * @param inTblB: field_farm SQL Table.
+     * @param outTbl: crop_economic_farms Output SQL Table.
+     * @param c: Connection to the Output SQL Database.
      */
     
-    private static void buildCropEconFarms(Statement inFld, Statement inBmp, Statement out, String tblA, String tblB){
+    private static void buildCropEconFarms(Statement inFld, Statement inBmp, Statement out, String inTblA, String inTblB, String outTbl, Connection c){
         try {
-            ResultSet inRsFld = inFld.executeQuery("SELECT * FROM " + tblA + ";");
-            ResultSet inRsFrm = inBmp.executeQuery("SELECT * FROM " + tblB + " WHERE farm > 0 ORDER BY farm;");
-            ResultSet outRs = out.executeQuery("SELECT * FROM " + tbl_names[1] + ";");
+            ResultSet inRsFld = inFld.executeQuery("SELECT * FROM " + inTblA + ";");
+            ResultSet inRsFrm = inBmp.executeQuery("SELECT * FROM " + inTblB + " WHERE farm > 0 ORDER BY farm;");
+            ResultSet outRs = out.executeQuery("SELECT * FROM " + outTbl + ";");
             NameTypePair[] ntp = loadInputNamesAndTypes(inRsFld);
-            String outColumnNames = loadSqlOutputColumnNames(outRs);
-            String sql = "INSERT INTO " + tbl_names[1] + "(" + outColumnNames + "VALUES(";
-            writeFarmSubbasinOutputQueries(inRsFrm, inFld, tblA, ntp, sql, out, "farm");
+            String outColumnNames = loadOutputColumnNames(outRs);
+            String sql = "INSERT INTO " + outTbl + "(" + outColumnNames + "VALUES(";
+            writeFarmSubbasinOutputQueries(inRsFrm, inFld, inTblA, ntp, sql, out, "farm");
+            c.commit();
+            System.out.println("\n" + outTbl +" database created successfully");
         } catch(SQLException e) {
             Logger.getLogger(BuildDB.class.getName()).log(Level.SEVERE, null, e);
         }
@@ -164,18 +174,43 @@ public class BuildDB {
      * @param out: Output Statement Call.
      * @param tblA: yield_historic SQL Table.
      * @param tblB: field_subbasin SQL Table.
+     * @param outTbl: crop_economic_fields Output SQL Table.
+     * @param c: Connection to the Output SQL Database.
      */
     
-    private static void buildCropEconSubbasins(Statement inFld, Statement inBmp, Statement out, String tblA, String tblB) {
+    private static void buildCropEconSubbasins(Statement inFld, Statement inBmp, Statement out, String tblA, String tblB, String outTbl, Connection c) {
         try {
             ResultSet inRsFld = inFld.executeQuery("SELECT * FROM " + tblA + ";");
             ResultSet inRsBsn = inBmp.executeQuery("SELECT * FROM " + tblB + " WHERE subbasin > 0 ORDER BY subbasin;");
-            ResultSet outRs = out.executeQuery("SELECT * FROM " + tbl_names[2] + ";");
+            ResultSet outRs = out.executeQuery("SELECT * FROM " + outTbl + ";");
             NameTypePair[] ntp = loadInputNamesAndTypes(inRsFld);
-            String outColumnNames = loadSqlOutputColumnNames(outRs);
-            String sql = "INSERT INTO " + tbl_names[2] + "(" + outColumnNames + "VALUES(";
+            String outColumnNames = loadOutputColumnNames(outRs);
+            String sql = "INSERT INTO " + outTbl + "(" + outColumnNames + "VALUES(";
             writeFarmSubbasinOutputQueries(inRsBsn, inFld, tblA, ntp, sql, out, "subbasin");
+            c.commit();
+            System.out.println("\n" + outTbl + " database created successfully");
         } catch(SQLException e) {
+            Logger.getLogger(BuildDB.class.getName()).log(Level.SEVERE, null, e);
+        }
+    }
+     
+    /**
+     * 
+     * @param src: ValueTypePair Array containing the table data values.
+     * @param out: Output Statement Call. This contains the Connection to the Output SQLite3 DB file.
+     * @param c: Connection to the Output SQL Database.
+     * @param tbl: String containing the name of the Output SQL Table.
+     */
+    
+    private static void buildDbfTables(ValueTypePair[][] src, Statement out, Connection c, String tbl) {
+        try {
+            for(ValueTypePair[] s: src) {
+                String sql = "INSERT INTO " + tbl + "(" + loadOutputColumnNames(out.executeQuery("SELECT * FROM " + tbl + ";")) + " VALUES(";
+                out.executeUpdate(writeDbfOutputQueries(s, sql));
+            }
+            c.commit();
+            System.out.println("\n" + tbl + " database created successfully");
+        } catch (SQLException e) {
             Logger.getLogger(BuildDB.class.getName()).log(Level.SEVERE, null, e);
         }
     }
@@ -225,7 +260,7 @@ public class BuildDB {
      * 
      */
     
-    private static String loadSqlOutputColumnNames(ResultSet oRs) {
+    private static String loadOutputColumnNames(ResultSet oRs) {
         String outColumnNames = "";
         try {
             String[] outColumnNamesArray = new String[oRs.getMetaData().getColumnCount()];      
@@ -242,26 +277,6 @@ public class BuildDB {
             Logger.getLogger(BuildDB.class.getName()).log(Level.SEVERE, null, e);
         }
         return outColumnNames;
-    }
-    
-    /**
-     * 
-     * @param src: An array containing the Strings with the SQLite column names. 
-     * @return sql: The partial SQL Query String. 
-     */
-    
-    private static String loadDbfOutputColumnNames(String[] src) {
-        String sql = "";
-        for(int i = 0; i < src.length; i++) {
-            sql += src[i];
-            if(i == src.length - 1) {
-                sql += ")";
-            }
-            else {
-                sql += ", ";
-            }
-        }
-        return sql;
     }
 
     /**
@@ -440,7 +455,7 @@ public class BuildDB {
      *               Both of formulae are computed as the sums of these values.
      */
     
-    private static ValueTypePair[][] loadGrazingSubbasinSqlData(ValueTypePair[][] vtp, Statement inA, Statement inB, String subGrz, String grzArea) {
+    private static ValueTypePair[][] loadGrazingSubbasinData(ValueTypePair[][] vtp, Statement inA, Statement inB, String subGrz, String grzArea) {
         ValueTypePair[][] vTemp = new ValueTypePair[vtp.length * 20][3];
         HashSet ids = new HashSet(), subs = new HashSet();
         int index = 0;
@@ -463,18 +478,18 @@ public class BuildDB {
                         IdValuePair[] iTempPct = new IdValuePair[vtp.length];
                         while(sRs.next()) {
                             grzId = sRs.getInt(2);
-                            if(ids.contains(grzId)) {
-                                ResultSet aRs = inB.executeQuery("SELECT * FROM " + grzArea + " where id = " + grzId + ";");
+                            //if(ids.contains(grzId)) {
+                                ResultSet aRs = inB.executeQuery("SELECT * FROM " + grzArea + " WHERE id = " + grzId + ";");
                                 iTempArea[k] = new IdValuePair(aRs.getInt(1), aRs.getDouble(2));
                                 iTempPct[k] = new IdValuePair(sRs.getInt(2), sRs.getDouble(3));
                                 k++;
-                            }
-                            else {
-                                ResultSet aRs = inB.executeQuery("SELECT * FROM " + grzArea + " where id = " + grzId + ";");
-                                iTempArea[k] = new IdValuePair(aRs.getInt(1), aRs.getDouble(2));
-                                iTempPct[k] = new IdValuePair(sRs.getInt(2), sRs.getDouble(3));
-                                k++;
-                            }
+                            //}
+                            //else {
+                           //     ResultSet aRs = inB.executeQuery("SELECT * FROM " + grzArea + " WHERE id = " + grzId + ";");
+                           //     iTempArea[k] = new IdValuePair(aRs.getInt(1), aRs.getDouble(2));
+                               //     iTempPct[k] = new IdValuePair(sRs.getInt(2), sRs.getDouble(3));
+                           //     k++;
+                            //}
                         }
                         IdValuePair[] grazeArea = new IdValuePair[k];
                         IdValuePair[] grazePct = new IdValuePair[k];
@@ -501,8 +516,38 @@ public class BuildDB {
         return vals;
     }
     
-    private static int loadGrazingHruSqlData() {
-        return 0;
+    /**
+     * 
+     * @param vtp: ValueTypePair Array containing the Grazing Economic data and type values.
+     * @param in: Input Statement used in calling the table in hruGrz.
+     * @param out: Output Statement used in calling the table in subGrz.
+     * @param hruGrz: subbasin_grazing_hru table name from Spatial.db3 as a String.
+     * @param subGrz: grazing_economic_subbasins table name from Output Database as a String.
+     * @return vals: ValueTypePair Array containing the HRU indexes for the SWAT
+     *               model for each grazing subbasin. The Array remains 2D for
+     *               consistent use with the buildDbfTables method.
+     */
+    
+    private static ValueTypePair[][] loadGrazingHruData(ValueTypePair[][] vtp, Statement in, Statement out, String hruGrz, String subGrz) {
+        ValueTypePair[][] temp = new ValueTypePair[vtp.length][1];
+        int length = 0;
+        try {
+            ResultSet sRs = out.executeQuery("SELECT DISTINCT id FROM " + subGrz + ";");
+            int index = 0;
+            while(sRs.next()) {
+                ResultSet hRs = in.executeQuery("SELECT * FROM " + hruGrz + " WHERE subbasin = " + sRs.getInt(1) + ";");
+                while(hRs.next()) {
+                    temp[index][0] = new ValueTypePair(hRs.getInt(2), 1);
+                    index++;
+                }
+            }
+            length = index;
+        } catch (SQLException e) {
+            Logger.getLogger(BuildDB.class.getName()).log(Level.SEVERE, null, e);
+        }
+        ValueTypePair[][] vals = new ValueTypePair[length][1];
+        System.arraycopy(temp, 0, vals, 0, length);
+        return vals;
     }
     
     /**
@@ -797,105 +842,50 @@ public class BuildDB {
             Statement inStmtB = cInDb3.createStatement();
             Statement outStmt = cOutput.createStatement();
             
-            createTables(inStmtA, outStmt);
-            System.out.println("\n" + hist + " database created successfully");
+            createTables(outStmt, cOutput);
             
             String tblA = "yield_historic"; // Parameter for Historical or Conventional
-            buildCropEconFields(inStmtA, outStmt, tblA);
-            cOutput.commit();
-            System.out.println("\n" + tbl_names[0] + " database created successfully");
+            buildCropEconFields(inStmtA, outStmt, tblA, "crop_economic_fields", cOutput);
             
-            buildCropEconFarms(inStmtA, inStmtB, outStmt, tblA, "field_farm");
+            buildCropEconFarms(inStmtA, inStmtB, outStmt, tblA, "field_farm", "crop_economic_farms", cOutput);
             cOutput.commit();
-            System.out.println("\n" + tbl_names[1] +  " database created successfully");
+            System.out.println("\ncrop_economic_farms database created successfully");
                        
-            buildCropEconSubbasins(inStmtA, inStmtB, outStmt, tblA, "field_subbasin");
+            buildCropEconSubbasins(inStmtA, inStmtB, outStmt, tblA, "field_subbasin", "crop_economic_subbasins", cOutput);
             cOutput.commit();
-            System.out.println("\n" + tbl_names[2] + " database created successfully");
+            System.out.println("\ncrop_economic_subbasins database created successfully");
             
             ValueTypePair[][] src;
+            
             src = loadDbfTableData(new Table(new File(dbf_tbls[0].getAbsolutePath())), "Existing", new String[]{"ID", "Embankment", "LifeTime"});
             
-            for(ValueTypePair[] s: src) {
-                String sql = "INSERT INTO " + tbl_names[13] + "(";
-                String[] sqlNames = {val_names[0], val_names[19], val_names[20]};
-                sql += loadDbfOutputColumnNames(sqlNames) + " VALUES(";
-                outStmt.executeUpdate(writeDbfOutputQueries(s, sql));
-            }
-            cOutput.commit();
-            System.out.println("\n" + tbl_names[13] + " database created successfully");
+            buildDbfTables(src, outStmt, cOutput, "small_dams");
             
-            src = loadSmallDamEconCosts(src);
-            
-            for(ValueTypePair[] s: src) {
-                String sql = "INSERT INTO " + tbl_names[9] + "(";
-                String[] sqlNames = {val_names[0], val_names[1], val_names[4]};
-                sql += loadDbfOutputColumnNames(sqlNames) + " VALUES(";
-                outStmt.executeUpdate(writeDbfOutputQueries(s, sql));
-            }
-            cOutput.commit();
-            System.out.println("\n" + tbl_names[9] + " database created successfully");
+            buildDbfTables(loadSmallDamEconCosts(src), outStmt, cOutput, "small_dams_economic");
             
             src = loadDbfTableData(new Table(new File(dbf_tbls[1].getAbsolutePath())), "Existing", new String[]{"ID", "HRU",
                                    "Cattles", "ClayLiner", "PlasticLn", "WireFence", "Distance", "Trenching", "Pond_Yrs"});
             src = loadPondCosts(src);
             
-            for(ValueTypePair[] s: src) {
-                String sql = "INSERT INTO " + tbl_names[12] + "(";
-                String[] sqlNames = {val_names[0], val_names[8], val_names[9],
-                                     val_names[10], val_names[11], val_names[12],
-                                     val_names[13], val_names[14], val_names[15],
-                                     val_names[4], val_names[16], val_names[17],
-                                     val_names[18]};
-                sql += loadDbfOutputColumnNames(sqlNames) + " VALUES("; // Replace ColumnNames with SQL
-                outStmt.executeUpdate(writeDbfOutputQueries(s, sql));
-            }
-            cOutput.commit();
-            System.out.println("\n" + tbl_names[12] + " database created successfully");
+            buildDbfTables(src, outStmt, cOutput, "holding_ponds");
             
-            src = loadPondEcon(src);
-            
-            for(ValueTypePair[] s: src) {
-                String sql = "INSERT INTO " + tbl_names[10] + "(";
-                String[] sqlNames = {val_names[0], val_names[1], val_names[4]};
-                sql += loadDbfOutputColumnNames(sqlNames) + " VALUES(";
-                outStmt.executeUpdate(writeDbfOutputQueries(s, sql));
-            }
-            cOutput.commit();
-            System.out.println("\n" + tbl_names[10] + " database created successfully");
+            buildDbfTables(loadPondEcon(src), outStmt, cOutput, "holding_ponds_economic");
             
             src = loadDbfTableData(new Table(new File(dbf_tbls[2].getAbsolutePath())), "Existing", new String[]{"ID", "Grazing_Ha", "UnitCost"});
+            
             src = loadGrazing(src);
             
-            for(ValueTypePair[] s: src) {
-                String sql = "INSERT INTO " + tbl_names[11] + "(";
-                String[] sqlNames = {val_names[0], val_names[6], val_names[7], val_names[4]};
-                sql += loadDbfOutputColumnNames(sqlNames) + " VALUES(";
-                outStmt.executeUpdate(writeDbfOutputQueries(s, sql));
-            }
-            cOutput.commit();
-            System.out.println("\n" + tbl_names[11] + " database created successfully");
+            buildDbfTables(src, outStmt, cOutput, "grazing");
             
-            buildDbfTables(loadGrazingEcon(src), outStmt, cOutput);
+            buildDbfTables(loadGrazingEcon(src), outStmt, cOutput, "grazing_economic");
             
-            src = loadGrazingSubbasinSqlData(src, inStmtA, inStmtB, "subbasin_grazing", "grazing_area");
+            src = loadGrazingSubbasinData(src, inStmtA, inStmtB, "subbasin_grazing", "grazing_area");
             
-            System.out.println("GRAZING SUBBASIN LOADED");
+            buildDbfTables(src, outStmt, cOutput, "grazing_economic_subbasins");
             
-            //buildDbfTables(src, outStmt, cOutput);
+            src = loadGrazingHruData(src, inStmtA, outStmt, "subbasin_grazing_hru", "grazing_economic_subbasins");
             
-            for(ValueTypePair[] s: src) {
-                String sql = "INSERT INTO " + tbl_names[8] + "(";
-                String[] sqlNames = {val_names[0], val_names[1], val_names[4]};
-                sql += loadDbfOutputColumnNames(sqlNames) + " VALUES(";
-                outStmt.executeUpdate(writeDbfOutputQueries(s, sql));
-            }
-            cOutput.commit();
-            System.out.println("\n" + tbl_names[8] + " database created successfully");
-            
-            //testPrint(src);
-
-            cOutput.commit();
+            buildDbfTables(src, outStmt, cOutput, "grazing_hrus");
         } catch(SQLException e) {
             Logger.getLogger(BuildDB.class.getName()).log(Level.SEVERE, null, e);
         } finally {
@@ -903,22 +893,7 @@ public class BuildDB {
             cInDb3.close();
         }
     }
-
-    private static void buildDbfTables(ValueTypePair[][] src, Statement out, Connection c) {
-        try {
-            for(ValueTypePair[] s: src) {
-                String sql = "INSERT INTO " + tbl_names[7] + "(";
-                String[] sqlNames = {val_names[0], val_names[1], val_names[4]};
-                sql += loadDbfOutputColumnNames(sqlNames) + " VALUES(";
-                out.executeUpdate(writeDbfOutputQueries(s, sql));
-            }
-            c.commit();
-            System.out.println("\n" + tbl_names[7] + " database created successfully");
-        } catch (SQLException e) {
-            Logger.getLogger(BuildDB.class.getName()).log(Level.SEVERE, null, e);
-        }
-    }
-
+    
     private static void testPrint(ValueTypePair[][] src) {
         for(ValueTypePair[] s: src) {
             for(int i = 0; i < s.length; i++) {
