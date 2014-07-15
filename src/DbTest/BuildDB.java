@@ -893,27 +893,4 @@ public class BuildDB {
             cInDb3.close();
         }
     }
-    
-    private static void testPrint(ValueTypePair[][] src) {
-        for(ValueTypePair[] s: src) {
-            for(int i = 0; i < s.length; i++) {
-                try {
-                    if(s[i].getPairValueAsInt() != -1) {
-                        int val = s[i].getPairValueAsInt();
-                        System.out.println(val);
-                    }
-                    else {
-                        double val = s[i].getPairValueAsDouble();
-                        System.out.println(val);
-                    }
-                    if(i == s.length - 1) {
-                        System.out.println();
-                    }
-                }
-                catch(NumberFormatException e) {
-                    Logger.getLogger(BuildDB.class.getName()).log(Level.SEVERE, null, e);
-                }
-            }
-        }
-    }
 }
