@@ -200,6 +200,7 @@ public class BuildDB {
         try {
             ntp = new NameTypePair[iRs.getMetaData().getColumnCount()];
             for(int i = 1; i <= iRs.getMetaData().getColumnCount(); i++) {
+                // 4 is the Java.Sql.Types code for Integers.
                 if (iRs.getMetaData().getColumnType(i) == 4) {
                     ntp[i - 1] = new NameTypePair(iRs.getMetaData().getColumnName(i), 1);
                 } else {
@@ -426,69 +427,79 @@ public class BuildDB {
         return vals;
     }
     
-    
+    /**
+     * 
+     * @param vtp: ValueTypePair Array containing the Grazing Economic data and type values.
+     * @param inA: Input Statement A used in calling the table in subGrz.
+     * @param inB: Input Statement B used in calling the table in grzArea.
+     * @param subGrz: Subbasin_grazing table name from Spatial.db3 as a String.
+     * @param grzArea: grazing_area table name from Spatial.db3 as a String.
+     * @return vals: ValueTypePair Array containing the calculated costs for the 
+     *               grazing subbasin areas, calculated by the formula of 
+     *               SUM(UnitCost * Area * Percentage) / SUM(Area * Percentage).
+     *               Both of formulae are computed as the sums of these values.
+     */
     
     private static ValueTypePair[][] loadGrazingSubbasinSqlData(ValueTypePair[][] vtp, Statement inA, Statement inB, String subGrz, String grzArea) {
-        IdValuePair[] temp = new IdValuePair[vtp.length];
-        ValueTypePair[][] vals = new ValueTypePair[temp.length * 20][3];
+        ValueTypePair[][] vTemp = new ValueTypePair[vtp.length * 20][3];
         HashSet ids = new HashSet(), subs = new HashSet();
+        int index = 0;
         for (ValueTypePair[] v : vtp) {
             ids.add(v[0].getPairValueAsInt());
         }
         try {
             ResultSet sRs = inA.executeQuery("SELECT * FROM " + subGrz + " ORDER BY grazing;");
-            ResultSet aRs = inB.executeQuery("SELECT * FROM " + grzArea + ";");
-            int index = 0;
             while(sRs.next()) {
                 int subId = sRs.getInt(1);
-                System.out.println(subId + " :Subbasin ID");
                 int grzId = sRs.getInt(2);
-                System.out.println(grzId + " :Grazing ID");
                 if(ids.contains(grzId)) {
                     if(subs.contains(subId)) {
                     }
                     else {
-                        sRs = inA.executeQuery("SELECT * FROM " + subGrz + " WHERE subbasin = " + subId + ";");
-                        while(sRs.next()) {
-                            
-                        }
                         subs.add(subId);
-                        int year = 1991;
-                        int j = 0;
-                        boolean found = false;
-                        for(int i = 0; i < 20; i++) {
-                            vals[index * 20 + i][0] = new ValueTypePair(subId, 1);
-                            vals[index * 20 + i][1] = new ValueTypePair(year, 1);
-                            if(i == 0) {
-                                while(!found) {
-                                    if(vtp[j][0].getPairValueAsInt() == grzId) {
-                                        vals[index * 20 + i][2] = new ValueTypePair(vtp[j][2].getPairValueAsDouble(), 0);
-                                        found = true;
-                                    }
-                                    else {
-                                        j++;
-                                    }
-                                }
+                        sRs = inA.executeQuery("SELECT * FROM " + subGrz + " WHERE subbasin = " + subId + ";");
+                        int k = 0; 
+                        IdValuePair[] iTempArea = new IdValuePair[vtp.length];
+                        IdValuePair[] iTempPct = new IdValuePair[vtp.length];
+                        while(sRs.next()) {
+                            grzId = sRs.getInt(2);
+                            if(ids.contains(grzId)) {
+                                ResultSet aRs = inB.executeQuery("SELECT * FROM " + grzArea + " where id = " + grzId + ";");
+                                iTempArea[k] = new IdValuePair(aRs.getInt(1), aRs.getDouble(2));
+                                iTempPct[k] = new IdValuePair(sRs.getInt(2), sRs.getDouble(3));
+                                k++;
                             }
                             else {
-                                vals[index * 20 + i][2] = new ValueTypePair(vtp[j][2].getPairValueAsDouble(), 0);
+                                ResultSet aRs = inB.executeQuery("SELECT * FROM " + grzArea + " where id = " + grzId + ";");
+                                iTempArea[k] = new IdValuePair(aRs.getInt(1), aRs.getDouble(2));
+                                iTempPct[k] = new IdValuePair(sRs.getInt(2), sRs.getDouble(3));
+                                k++;
                             }
-                            System.out.println(vals[index * 20 + i][0].getPairValueAsInt() + ": id");
-                            System.out.println(vals[index * 20 + i][1].getPairValueAsInt() + ": year");
-                            System.out.println(vals[index * 20 + i][2].getPairValueAsDouble() + ": cost");
+                        }
+                        IdValuePair[] grazeArea = new IdValuePair[k];
+                        IdValuePair[] grazePct = new IdValuePair[k];
+                        System.arraycopy(iTempArea, 0, grazeArea, 0, k);
+                        System.arraycopy(iTempPct, 0, grazePct, 0, k);
+                        double cost = calculateGrazingMeanCost(grazeArea, grazePct, vtp);
+                        int year = 1991;
+                        for(int i = 0; i < 20; i++) {
+                            vTemp[index * 20 + i][0] = new ValueTypePair(subId, 1);
+                            vTemp[index * 20 + i][1] = new ValueTypePair(year, 1);
+                            vTemp[index * 20 + i][2] = new ValueTypePair(cost, 0);
                             year++;
                         }
                         index++;
+                        sRs = inA.executeQuery("SELECT * FROM " + subGrz + " ORDER BY grazing;");
                     }
                 }
             }
         } catch (SQLException e) {
             Logger.getLogger(BuildDB.class.getName()).log(Level.SEVERE, null, e);
         }
+        ValueTypePair[][] vals = new ValueTypePair[index * 20][3];
+        System.arraycopy(vTemp, 0, vals, 0, vals.length);
         return vals;
     }
-    
-    
     
     private static int loadGrazingHruSqlData() {
         return 0;
@@ -559,6 +570,38 @@ public class BuildDB {
         + wire * (24.48 + 3.71 * Math.sqrt(catl)) + 1.85 * catl;
 
         return min / 2.0 + max / 2.0;
+    }
+    
+    /**
+     * 
+     * @param ivpArea: IdValuePair Array containing the Grazing id and area values.
+     * @param ivpPct: IdValuePair Array containing the Grazing id and Percent values.
+     * @param vtp: ValueTypePair Array containing the Grazing Economic data and type values.
+     * @return The Calculated value of the areaCostSum / areaSum. This formula is
+     *         comprised of the Sum of the UnitCost of the Grazing area,
+     *         times the Grazing area, times the Grazing area percentage, 
+     *         over the Sum of the Grazing area times the Grazing area
+     *         percentage.
+     */
+    
+    private static double calculateGrazingMeanCost(IdValuePair[] ivpArea, IdValuePair[] ivpPct, ValueTypePair[][] vtp) {
+        IdValuePair[] ivpCosts = new IdValuePair[ivpArea.length];
+        double areaCostSum = 0.0, areaSum = 0.0;
+        for(int i = 0; i < ivpArea.length; i++) {
+            for (ValueTypePair[] v : vtp) {
+                if (v[0].getPairValueAsInt() == ivpArea[i].getPairId()) {
+                    ivpCosts[i] = new IdValuePair(ivpArea[i].getPairId(), v[2].getPairValueAsDouble());
+                }
+            }
+            if(ivpCosts[i] == null) {
+                ivpCosts[i] = new IdValuePair(ivpArea[i].getPairId(), 0.0);
+            }
+        }
+        for(int i = 0; i < ivpCosts.length; i++) {
+            areaCostSum += (ivpCosts[i].getPairValue() * ivpArea[i].getPairValue() * ivpPct[i].getPairValue());
+            areaSum += ivpArea[i].getPairValue() * ivpPct[i].getPairValue();
+        }
+        return areaCostSum / areaSum;
     }
         
     /**
@@ -837,9 +880,10 @@ public class BuildDB {
             
             src = loadGrazingSubbasinSqlData(src, inStmtA, inStmtB, "subbasin_grazing", "grazing_area");
             
-            testPrint(src);
+            System.out.println("GRAZING SUBBASIN LOADED");
             
-            buildDbfTables(src, outStmt, cOutput);
+            //buildDbfTables(src, outStmt, cOutput);
+            
             for(ValueTypePair[] s: src) {
                 String sql = "INSERT INTO " + tbl_names[8] + "(";
                 String[] sqlNames = {val_names[0], val_names[1], val_names[4]};
@@ -849,7 +893,7 @@ public class BuildDB {
             cOutput.commit();
             System.out.println("\n" + tbl_names[8] + " database created successfully");
             
-            testPrint(src);
+            //testPrint(src);
 
             cOutput.commit();
         } catch(SQLException e) {
@@ -870,8 +914,8 @@ public class BuildDB {
             }
             c.commit();
             System.out.println("\n" + tbl_names[7] + " database created successfully");
-        } catch (SQLException ex) {
-            Logger.getLogger(BuildDB.class.getName()).log(Level.SEVERE, null, ex);
+        } catch (SQLException e) {
+            Logger.getLogger(BuildDB.class.getName()).log(Level.SEVERE, null, e);
         }
     }
 
