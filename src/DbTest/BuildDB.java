@@ -211,6 +211,24 @@ public class BuildDB {
             Logger.getLogger(BuildDB.class.getName()).log(Level.SEVERE, null, e);
         }
     }
+    
+    private void buildTillage(Statement in, Statement out, String inTbl, String outTbl, int[] src, Connection c) {
+        try{
+            ResultSet inRs = in.executeQuery("SELECT * FROM " + inTbl + ";");
+            ResultSet outRs = out.executeQuery("SELECT * FROM " + outTbl + ";");
+            NameTypePair[] ntp = loadInputNamesAndTypes(inRs);
+            String outColumnNames = loadOutputColumnNames(inRs);
+            String sql = "INSERT INTO " + outTbl + "(" + outColumnNames + "VALUES(";
+            while(inRs.next()) {
+                loadTillageAndHruData();
+                out.executeUpdate(writeTillageOutputQuery(inRs, ntp, sql, 0));
+            }
+            c.commit();
+            System.out.println("\n" + outTbl + " database created successfully");
+        } catch (SQLException e) {
+            Logger.getLogger(BuildDB.class.getName()).log(Level.SEVERE, null, e);
+        }
+    }
      
     /**
      * 
@@ -562,6 +580,10 @@ public class BuildDB {
         return vals;
     }
     
+    private static void loadTillageAndHruData() {
+        
+    }
+    
     /**
      * 
      * @param m: Embankment Value.
@@ -794,6 +816,39 @@ public class BuildDB {
         } catch(SQLException e) {
             Logger.getLogger(BuildDB.class.getName()).log(Level.SEVERE, null, e);
         }
+    }
+    
+    /**
+     * 
+     * @param iRs: Input ResultSet containing the query result from the source table.
+     * @param ntp: The NameTypePair array from getInputNamesAndTypes. 
+     * @param s: String containing the SQL Query to be written to the output Table.
+     * @param n: Starts building the Query String from the column n - 1 in ntp.
+     * @return sql: The Query needed for the output statement.
+     */
+    
+    private static String writeTillageOutputQuery(ResultSet iRs, NameTypePair[] ntp, String s, int n) {
+        try {
+            String sql = s;
+            for (int i = n; i < iRs.getMetaData().getColumnCount(); i++) {
+                if(ntp[i].getPairType() == 1) {
+                    sql += iRs.getInt(ntp[i].getPairName());
+                }
+                else {
+                    sql += iRs.getDouble(ntp[i].getPairName());
+                }
+                if(i == (iRs.getMetaData().getColumnCount() - 1)) {
+                    sql += ");";
+                }
+                else {
+                    sql += ", ";
+                }
+            }
+            return sql;
+        } catch (SQLException e) {
+            Logger.getLogger(BuildDB.class.getName()).log(Level.SEVERE, null, e);
+        }
+        return "";
     }
     
     /**
