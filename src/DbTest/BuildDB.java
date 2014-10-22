@@ -44,7 +44,7 @@ public class BuildDB {
      */
     
     private static void createTables(Statement out, Connection c) {
-        final String[] tbl_names = {"crop_economic_fields", "crop_economic_farms", "crop_economic_subbasins", "forage", "forage_hru",
+        final String[] tbl_names = {"crop_economic_fields", "crop_economic_farms", "crop_economic_subbasins", "forage", "forage_hrus",
                                     "tillage", "grazing_hrus", "grazing_economic", "grazing_economic_subbasins", "small_dams_economic",
                                     "holding_ponds_economic", "grazing", "holding_ponds", "small_dams", "tillage_hrus"};
         final String[] val_names = {"id", "year", "yield", "revenue", "cost", "net_return", "grazing_ha", "unit_cost", "hru",
@@ -212,19 +212,65 @@ public class BuildDB {
         }
     }
     
-    private void buildTillage(Statement in, Statement out, String inTbl, String outTbl, int[] src, Connection c) {
-        try{
+    /**
+     * 
+     * @param in: Input Statement Call.
+     * @param outA: Output Statement Call to the Tillage/Forage Table.
+     * @param outB: Output Statement Call to the Tillage/Forage HRU Tables.
+     * @param inTbl: Name of the Input Table called yield_historic from the SQLite3 DB.
+     * @param outTbl: Name of the Tillage/Forage Table. Specified separately due to the
+     *                necessity to use the Tillage/Forage IDs as input for the HRU tables.
+     * @param outTblHru: Name of the Tillage/Forage HRU Table.
+     * @param type: Use to identify whether the Field, Farm, or Subbasin calculation is needed.
+     * @param data: An integer array containing the specified fields that have been selected
+     *              by the user for use in building the scenario.
+     * @param isConv: Used for the Tillage functions to determine if the Tillage Type is Conventional
+     *                or Zero.
+     * @param c: Connection to the Output SQL Database
+     */
+    
+    private static void buildTillageForage(Statement in, Statement outA, Statement outB, String inTbl, String outTbl, String outTblHru, int type, int[] data, boolean isConv, Connection c) {
+        try {
             ResultSet inRs = in.executeQuery("SELECT * FROM " + inTbl + ";");
-            ResultSet outRs = out.executeQuery("SELECT * FROM " + outTbl + ";");
-            NameTypePair[] ntp = loadInputNamesAndTypes(inRs);
-            String outColumnNames = loadOutputColumnNames(inRs);
+            ResultSet outRs = outA.executeQuery("SELECT * FROM " + outTbl + ";");
+            String outColumnNames = loadOutputColumnNames(outRs);
+            int[] ids = loadTillageForageIds(inRs, data);
             String sql = "INSERT INTO " + outTbl + "(" + outColumnNames + "VALUES(";
-            while(inRs.next()) {
-                loadTillageAndHruData();
-                out.executeUpdate(writeTillageOutputQuery(inRs, ntp, sql, 0));
+            for(int i = 0; i < ids.length; i++) {
+                outA.executeUpdate(sql + ids[i] + ");");
             }
             c.commit();
             System.out.println("\n" + outTbl + " database created successfully");
+            inRs = outA.executeQuery("SELECT * FROM " + outTbl + ";");
+            outRs = outB.executeQuery("SELECT * FROM " + outTblHru + ";");
+            outColumnNames = loadOutputColumnNames(outRs);
+            sql = "INSERT INTO " + outTblHru + "(" + outColumnNames + "VALUES(";
+            int[] hrus;
+            int tillageType = 4;
+            if(outTbl.equals("tillage")) {
+                if(isConv) {
+                    tillageType = 56;
+                }
+            }
+            if(type == 2) {
+                hrus = loadTillageForageHrus(in, "hru_subbasin", type, ids);
+            }
+            else if(type == 1) {
+                hrus = loadTillageForageHrus(in, "hru_field", type, ids);
+            }
+            else {
+                hrus = loadTillageForageHrus(in, "hru_field", type, ids);
+            }
+            for(int i = 0; i < hrus.length; i++) {
+                if(outTbl.equals("tillage")) {
+                    outB.executeUpdate(sql + hrus[i] + ", " + tillageType + ");");
+                }
+                else {
+                    outB.executeUpdate(sql + hrus[i] + ");");
+                }
+            }
+            c.commit();
+            System.out.println("\n" + outTblHru + " database created successfully");
         } catch (SQLException e) {
             Logger.getLogger(BuildDB.class.getName()).log(Level.SEVERE, null, e);
         }
@@ -238,10 +284,16 @@ public class BuildDB {
      * @param tbl: String containing the name of the Output SQL Table.
      */
     
-    private static void buildDbfTables(ValueTypePair[][] src, Statement out, Connection c, String tbl) {
+    private static void buildDbfTables(ValueTypePair[][] src, Statement out, Connection c, String tbl, boolean saving) {
         try {
             for(ValueTypePair[] s: src) {
-                String sql = "INSERT INTO " + tbl + "(" + loadOutputColumnNames(out.executeQuery("SELECT * FROM " + tbl + ";")) + " VALUES(";
+                String sql = "INSERT INTO " + tbl + "(";
+                if(saving) {
+                    sql += "ID) VALUES(";
+                }
+                else {
+                    sql += loadOutputColumnNames(out.executeQuery("SELECT * FROM " + tbl + ";")) + " VALUES(";
+                }
                 out.executeUpdate(writeDbfOutputQueries(s, sql));
             }
             c.commit();
@@ -331,26 +383,54 @@ public class BuildDB {
      * @throws IOException: File I/O Error when verifying existence of a DBF table.
      */
     
-    private static ValueTypePair[][] loadDbfTableData(Table tbl, String existing, String[] columns) throws IOException {
+    private static ValueTypePair[][] loadDbfTableData(Table tbl, String[] columns, int[] data, boolean saving) throws IOException {
         ValueTypePair[][] vals = null, temp = null;
         int entries = 0;
         try {
             tbl.open(IfNonExistent.ERROR);
-            temp = new ValueTypePair[tbl.getRecordCount()][columns.length];
+            if(saving) {
+                temp = new ValueTypePair[tbl.getRecordCount()][1];
+            }
+            else {
+                temp = new ValueTypePair[tbl.getRecordCount()][columns.length];
+            }
             System.out.println("\nOpened " + tbl.getName() + " database successfully");
-            
             Iterator<Record> iter = tbl.recordIterator();
-            for(int i = 0; i < tbl.getRecordCount(); i++) {
-                Record rec = iter.next();
-                Number exists = rec.getNumberValue(existing);
-                if(exists.intValue() == 1) {
-                    for(int j = 0; j < columns.length; j++) {
-                        Number n = rec.getNumberValue(columns[j]);
-                        if(n.doubleValue() % 1 > 0 || columns[j].equalsIgnoreCase("embankment") || columns[j].equalsIgnoreCase("distance")) {
-                            temp[entries][j] = new ValueTypePair(n.doubleValue(), 0);
+            
+            if(data == null) {
+                for(int i = 0; i < tbl.getRecordCount(); i++) {
+                    Record rec = iter.next();
+                    Number exists = rec.getNumberValue("Existing");
+                    if(exists.intValue() == 1) {
+                        for(int j = 0; j < columns.length; j++) {
+                            Number n = rec.getNumberValue(columns[j]);
+                            if(n.doubleValue() % 1 > 0 || columns[j].equalsIgnoreCase("embankment") || columns[j].equalsIgnoreCase("distance")) {
+                                temp[entries][j] = new ValueTypePair(n.doubleValue(), 0);
+                            }
+                            else {
+                                temp[entries][j] = new ValueTypePair((double) n.intValue(), 1);
+                            }
                         }
-                        else {
-                            temp[entries][j] = new ValueTypePair((double) n.intValue(), 1);
+                        entries++;
+                    }
+                }
+            }
+            else {
+                for(int i = 0; i < data.length; i++) {
+                    Record rec = iter.next();
+                    if(saving) {
+                        Number n = rec.getNumberValue(columns[0]);
+                        temp[entries][0] = new ValueTypePair((double) n.intValue(), 1);
+                    }
+                    else {
+                        for(int j = 0; j < columns.length; j++) {
+                            Number n = rec.getNumberValue(columns[j]);
+                            if(n.doubleValue() % 1 > 0 || columns[j].equalsIgnoreCase("embankment") || columns[j].equalsIgnoreCase("distance")) {
+                                temp[entries][j] = new ValueTypePair(n.doubleValue(), 0);
+                            }
+                            else {
+                                temp[entries][j] = new ValueTypePair((double) n.intValue(), 1);
+                            }
                         }
                     }
                     entries++;
@@ -461,13 +541,24 @@ public class BuildDB {
      *               grazing areas, as UnitCost * Grazing_Ha.
      */
     
-    private static ValueTypePair[][] loadGrazing(ValueTypePair[][] vtp) {
-        ValueTypePair[][] vals = new ValueTypePair[vtp.length][4];
+    private static ValueTypePair[][] loadGrazing(ValueTypePair[][] vtp, boolean saving) {
+        ValueTypePair[][] vals;
+        int size;
+        if(saving) {
+            vals = new ValueTypePair[vtp.length][1];
+            size = 1;
+        }
+        else {
+            vals = new ValueTypePair[vtp.length][4];
+            size = 3;
+        }
         for(int i = 0; i < vtp.length; i++) {
-            for(int j = 0; j < 3; j++) {
+            for(int j = 0; j < size; j++) {
                 vals[i][j] = new ValueTypePair(vtp[i][j].getPairValueAsDouble(), vtp[i][j].getPairType());
             }
-            vals[i][3] = new ValueTypePair(vals[i][1].getPairValueAsDouble() * vals[i][2].getPairValueAsDouble(), 0);
+            if(!saving) {
+                vals[i][3] = new ValueTypePair(vals[i][1].getPairValueAsDouble() * vals[i][2].getPairValueAsDouble(), 0);
+            }
         }
         return vals;
     }
@@ -551,27 +642,76 @@ public class BuildDB {
      * @param vtp: ValueTypePair Array containing the Grazing Economic data and type values.
      * @param in: Input Statement used in calling the table in hruGrz.
      * @param out: Output Statement used in calling the table in subGrz.
+     * @param subGrz: subbasin_grazing table name from Spatial.db3 as a String.
+     *                Used to convert IDs when saving table.
      * @param hruGrz: subbasin_grazing_hru table name from Spatial.db3 as a String.
-     * @param subGrz: grazing_economic_subbasins table name from Output Database as a String.
+     * @param grzTbl: grazing table name from Output Database as a String.
      * @return vals: ValueTypePair Array containing the HRU indexes for the SWAT
      *               model for each grazing subbasin. The Array remains 2D for
      *               consistent use with the buildDbfTables method.
      */
     
-    private static ValueTypePair[][] loadGrazingHruData(ValueTypePair[][] vtp, Statement in, Statement out, String hruGrz, String subGrz) {
+    private static ValueTypePair[][] loadGrazingHruData(ValueTypePair[][] vtp, Statement inA, Statement inB, Statement out, String subGrz, String hruGrz, String grzTbl, boolean saving) {
         ValueTypePair[][] temp = new ValueTypePair[vtp.length][1];
+        HashSet idSet = new HashSet();
         int length = 0;
+        for(ValueTypePair[] v : vtp) {
+            idSet.add(v[0].getPairValueAsInt());
+        }
         try {
-            ResultSet sRs = out.executeQuery("SELECT DISTINCT id FROM " + subGrz + ";");
-            int index = 0;
-            while(sRs.next()) {
-                ResultSet hRs = in.executeQuery("SELECT * FROM " + hruGrz + " WHERE subbasin = " + sRs.getInt(1) + ";");
-                while(hRs.next()) {
-                    temp[index][0] = new ValueTypePair(hRs.getInt(2), 1);
-                    index++;
+            if(saving) {
+                ResultSet idRs = out.executeQuery("SELECT DISTINCT ID FROM " + grzTbl + ";");
+                HashSet subSet = new HashSet();
+                int index = 0, multiples = 0;
+                while(idRs.next()) {
+                    ResultSet subRs = inA.executeQuery("SELECT * FROM " + subGrz + " WHERE grazing = " + idRs.getInt("ID") + " ORDER BY grazing");
+                    while(subRs.next()) {
+                        int subId = subRs.getInt(1);
+                        int grzId = subRs.getInt(2);
+                        if(idSet.contains(grzId)) {
+                            if(subSet.contains(subId)) {
+                            }
+                            else if(multiples == grzId) {
+                                subSet.add(subId);
+                                temp[index][0] = new ValueTypePair(subId, 1);
+                                index++;
+                            }
+                            else {
+                                subSet.add(subId);
+                                multiples = grzId;
+                                temp[index][0] = new ValueTypePair(subId, 1);
+                                index++;
+                            }
+                        }
+                    }
                 }
+                length = index;
+                index = 0;
+                ValueTypePair[][] convert = new ValueTypePair[length][1];
+                System.arraycopy(temp, 0, convert, 0, length);
+                ValueTypePair[][] temp2 = new ValueTypePair[vtp.length][1];
+                for(ValueTypePair[] c : convert) {
+                    ResultSet hRs = inA.executeQuery("SELECT * FROM " + hruGrz + " WHERE subbasin = " + c[0].getPairValueAsInt() + ";");
+                    while(hRs.next()) {
+                        temp2[index][0] = new ValueTypePair(hRs.getInt("HRUSWATIndex"), 1);
+                        index++;
+                    }
+                }
+                System.arraycopy(temp2, 0, temp, 0, vtp.length);
+                length = index;
             }
-            length = index;
+            else {
+                ResultSet sRs = out.executeQuery("SELECT DISTINCT ID FROM " + grzTbl + ";");
+                int index = 0;
+                while(sRs.next()) {
+                    ResultSet hRs = inA.executeQuery("SELECT * FROM " + hruGrz + " WHERE subbasin = " + sRs.getInt("id") + ";");
+                    while(hRs.next()) {
+                        temp[index][0] = new ValueTypePair(hRs.getInt("HRUSWATIndex"), 1);
+                        index++;
+                    }
+                }
+                length = index;
+            }
         } catch (SQLException e) {
             Logger.getLogger(BuildDB.class.getName()).log(Level.SEVERE, null, e);
         }
@@ -580,8 +720,152 @@ public class BuildDB {
         return vals;
     }
     
-    private static void loadTillageAndHruData() {
-        
+    /**
+     * 
+     * @param inRs Input ResultSet containing the query result from the source
+     *             table.
+     * @param data Integer array containing data?
+     * @return idArray: Integer array containing the field IDs needed for the
+     *                  appropriate table.
+     */
+    
+    private static int[] loadTillageForageIds(ResultSet inRs, int[] data) {
+        int[] idArray = null;
+        HashSet tempSet = new HashSet(), idSet = new HashSet();
+        for(int i = 0; i < data.length; i++) {
+            tempSet.add(data[i]);
+        }
+        try { 
+            int k = 0;
+            int[] tempArray = new int[data.length];
+            while(inRs.next()) {
+                int field = inRs.getInt("field");
+                if(tempSet.contains(field)) {
+                    if(idSet.contains(field)) {
+                    }
+                    else {
+                        idSet.add(field);
+                        tempArray[k] = field;
+                        k++;
+                    }
+                }
+            }
+            idArray = new int[k];
+            System.arraycopy(tempArray, 0, idArray, 0, k);
+        } catch(SQLException e) {
+            Logger.getLogger(BuildDB.class.getName()).log(Level.SEVERE, null, e);
+        }
+        return idArray;
+    }
+    
+    /**
+     * 
+     * @param inHist
+     * @param tbl
+     * @param type
+     * @param data
+     * @return 
+     */
+    
+    private static int[] loadTillageForageHrus(Statement inHist, String tbl, int type, int[] data) {
+        ResultSet rs = null;
+        HashSet idSet = new HashSet();
+        int[] ids = null;
+        for(int i = 0; i < data.length; i++) {
+            idSet.add(data[i]);
+        }
+        try {
+            int[] temp = new int[data.length * 20];
+            int multiples = 0, index = 0;
+            if(type == 1) {
+                rs = inHist.executeQuery("SELECT * FROM field_farm ORDER BY FARM");
+                while(rs.next()) {
+                    HashSet farmSet = idSet;
+                    int frm = rs.getInt("farm");
+                    int fld = rs.getInt("field");
+                    if(farmSet.contains(frm)) {
+                        if(multiples == frm) {
+                            temp[index] = fld;
+                            index++;
+                        }
+                        else {
+                            if(multiples > 0) {
+                                farmSet.remove(multiples);
+                            }
+                            multiples = frm;
+                            temp[index] = fld;
+                            index++;
+                        }
+                    }
+                }
+                rs = inHist.executeQuery("SELECT * FROM " + tbl + " ORDER BY FIELD;");
+                while(rs.next()) {
+                    int fld = rs.getInt("field");
+                    int hru = rs.getInt("HRUSWATIndex");
+                    if(idSet.contains(fld)) {
+                        if(multiples == fld) {
+                            temp[index] = hru;
+                            index++;
+                        }
+                        else {
+                            if(multiples > 0) {
+                                idSet.remove(multiples);
+                            }
+                            multiples = fld;
+                            temp[index] = hru;
+                            index++;
+                        }
+                    }
+                }
+            }
+            else if(type == 2){
+                rs = inHist.executeQuery("SELECT * FROM " + tbl + " ORDER BY SUBBASIN;");
+                while(rs.next()) {
+                    int sub = rs.getInt("subbasin");
+                    int hru = rs.getInt("HRUSWATIndex");
+                    if(idSet.contains(sub)) {
+                        if(multiples == sub) {
+                            temp[index] = hru;
+                            index++;
+                        }
+                        else {
+                            if(multiples > 0) {
+                                idSet.remove(multiples);
+                            }
+                            multiples = sub;
+                            temp[index] = hru;
+                            index++;
+                        }
+                    }
+                }
+            }
+            else {
+                rs = inHist.executeQuery("SELECT * FROM " + tbl + " ORDER BY FIELD;");
+                while(rs.next()) {
+                    int fld = rs.getInt("field");
+                    int hru = rs.getInt("HRUSWATIndex");
+                    if(idSet.contains(fld)) {
+                        if(multiples == fld) {
+                            temp[index] = hru;
+                            index++;
+                        }
+                        else {
+                            if(multiples > 0) {
+                                idSet.remove(multiples);
+                            }
+                            multiples = fld;
+                            temp[index] = hru;
+                            index++;
+                        }
+                    }
+                }
+            }
+            ids = new int[index];
+            System.arraycopy(temp, 0, ids, 0, index);
+        } catch(SQLException e) {
+            Logger.getLogger(BuildDB.class.getName()).log(Level.SEVERE, null, e);
+        }
+        return ids;
     }
     
     /**
@@ -730,6 +1014,7 @@ public class BuildDB {
      * @param ntp: The NameTypePair array from getInputNamesAndTypes.
      * @param s: String containing the SQL Query to be written to the output Table.
      * @param out: Output Statement Call.
+     * @param bmp: String specifying either Farm or Subbasin BMP.
      */
     
     private static void writeFarmSubbasinOutputQueries(ResultSet rsBmp, Statement in, String tbl, NameTypePair[] ntp, String s, Statement out, String bmp) {
@@ -820,39 +1105,6 @@ public class BuildDB {
     
     /**
      * 
-     * @param iRs: Input ResultSet containing the query result from the source table.
-     * @param ntp: The NameTypePair array from getInputNamesAndTypes. 
-     * @param s: String containing the SQL Query to be written to the output Table.
-     * @param n: Starts building the Query String from the column n - 1 in ntp.
-     * @return sql: The Query needed for the output statement.
-     */
-    
-    private static String writeTillageOutputQuery(ResultSet iRs, NameTypePair[] ntp, String s, int n) {
-        try {
-            String sql = s;
-            for (int i = n; i < iRs.getMetaData().getColumnCount(); i++) {
-                if(ntp[i].getPairType() == 1) {
-                    sql += iRs.getInt(ntp[i].getPairName());
-                }
-                else {
-                    sql += iRs.getDouble(ntp[i].getPairName());
-                }
-                if(i == (iRs.getMetaData().getColumnCount() - 1)) {
-                    sql += ");";
-                }
-                else {
-                    sql += ", ";
-                }
-            }
-            return sql;
-        } catch (SQLException e) {
-            Logger.getLogger(BuildDB.class.getName()).log(Level.SEVERE, null, e);
-        }
-        return "";
-    }
-    
-    /**
-     * 
      * @param src: Array containing the data values for the SQL query.
      * @param s: The partial SQL Query String.
      * @return sql: The complete SQL Query String.
@@ -907,52 +1159,77 @@ public class BuildDB {
         try {
             Statement inStmtA = cInDb3.createStatement();
             Statement inStmtB = cInDb3.createStatement();
-            Statement outStmt = cOutput.createStatement();
+            Statement outStmtA = cOutput.createStatement();
+            Statement outStmtB = cOutput.createStatement();
             
-            createTables(outStmt, cOutput);
+            createTables(outStmtA, cOutput);
             
-            String tblA = "yield_historic"; // Parameter for Historical or Conventional
-            buildCropEconFields(inStmtA, outStmt, tblA, "crop_economic_fields", cOutput);
+            String tblA = "yield_historic";
+            buildCropEconFields(inStmtA, outStmtA, tblA, "crop_economic_fields", cOutput);
             
-            buildCropEconFarms(inStmtA, inStmtB, outStmt, tblA, "field_farm", "crop_economic_farms", cOutput);
+            buildCropEconFarms(inStmtA, inStmtB, outStmtA, tblA, "field_farm", "crop_economic_farms", cOutput);
             cOutput.commit();
             System.out.println("\ncrop_economic_farms database created successfully");
                        
-            buildCropEconSubbasins(inStmtA, inStmtB, outStmt, tblA, "field_subbasin", "crop_economic_subbasins", cOutput);
+            buildCropEconSubbasins(inStmtA, inStmtB, outStmtA, tblA, "field_subbasin", "crop_economic_subbasins", cOutput);
             cOutput.commit();
             System.out.println("\ncrop_economic_subbasins database created successfully");
             
+            int[] data = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26},
+                  data2 = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16},
+                  data3 = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20};
+            int type = 0;
+            boolean isConv = true, saving = true;
+            
+            buildTillageForage(inStmtA, outStmtA, outStmtB, tblA, "tillage", "tillage_hrus", type, data, isConv, cOutput);
+            
+            buildTillageForage(inStmtA, outStmtA, outStmtB, tblA, "forage", "forage_hrus", type, data2, isConv, cOutput);
+            
             ValueTypePair[][] src;
             
-            src = loadDbfTableData(new Table(new File(dbf_tbls[0].getAbsolutePath())), "Existing", new String[]{"ID", "Embankment", "LifeTime"});
+            src = loadDbfTableData(new Table(new File(dbf_tbls[0].getAbsolutePath())), new String[]{"ID", "Embankment", "LifeTime"}, data, saving);
             
-            buildDbfTables(src, outStmt, cOutput, "small_dams");
+            buildDbfTables(src, outStmtA, cOutput, "small_dams", saving);
             
-            buildDbfTables(loadSmallDamEconCosts(src), outStmt, cOutput, "small_dams_economic");
+            if(!saving) {
+                buildDbfTables(loadSmallDamEconCosts(src), outStmtA, cOutput, "small_dams_economic", saving);
+            }
             
-            src = loadDbfTableData(new Table(new File(dbf_tbls[1].getAbsolutePath())), "Existing", new String[]{"ID", "HRU",
-                                   "Cattles", "ClayLiner", "PlasticLn", "WireFence", "Distance", "Trenching", "Pond_Yrs"});
-            src = loadPondCosts(src);
+            src = loadDbfTableData(new Table(new File(dbf_tbls[1].getAbsolutePath())), new String[]{"ID", "HRU",
+                                   "Cattles", "ClayLiner", "PlasticLn", "WireFence", "Distance", "Trenching", "Pond_Yrs"}, data2, saving);
             
-            buildDbfTables(src, outStmt, cOutput, "holding_ponds");
+            if(!saving) {
+                src = loadPondCosts(src);
+            }
             
-            buildDbfTables(loadPondEcon(src), outStmt, cOutput, "holding_ponds_economic");
+            buildDbfTables(src, outStmtA, cOutput, "holding_ponds", saving);
             
-            src = loadDbfTableData(new Table(new File(dbf_tbls[2].getAbsolutePath())), "Existing", new String[]{"ID", "Grazing_Ha", "UnitCost"});
+            if(!saving) {
+                buildDbfTables(loadPondEcon(src), outStmtA, cOutput, "holding_ponds_economic", saving);
+            }
             
-            src = loadGrazing(src);
+            src = loadDbfTableData(new Table(new File(dbf_tbls[2].getAbsolutePath())), new String[]{"ID", "Grazing_Ha", "UnitCost"}, data3, saving);
             
-            buildDbfTables(src, outStmt, cOutput, "grazing");
+            src = loadGrazing(src, saving);
             
-            buildDbfTables(loadGrazingEcon(src), outStmt, cOutput, "grazing_economic");
+            buildDbfTables(src, outStmtA, cOutput, "grazing", saving);
             
-            src = loadGrazingSubbasinData(src, inStmtA, inStmtB, "subbasin_grazing", "grazing_area");
+            if(!saving) {
+                buildDbfTables(loadGrazingEcon(src), outStmtA, cOutput, "grazing_economic", saving);
             
-            buildDbfTables(src, outStmt, cOutput, "grazing_economic_subbasins");
+                src = loadGrazingSubbasinData(src, inStmtA, inStmtB, "subbasin_grazing", "grazing_area");
             
-            src = loadGrazingHruData(src, inStmtA, outStmt, "subbasin_grazing_hru", "grazing_economic_subbasins");
+                buildDbfTables(src, outStmtA, cOutput, "grazing_economic_subbasins", saving);
+            }
             
-            buildDbfTables(src, outStmt, cOutput, "grazing_hrus");
+            if(saving) {
+                src = loadGrazingHruData(src, inStmtA, inStmtB, outStmtA, "subbasin_grazing", "subbasin_grazing_hru", "grazing", saving);
+            }
+            else {
+                src = loadGrazingHruData(src, inStmtA, inStmtB, outStmtA, "subbasin_grazing", "subbasin_grazing_hru", "grazing_economic_subbasins", saving);
+            }
+            
+            buildDbfTables(src, outStmtA, cOutput, "grazing_hrus", saving);
         } catch(SQLException e) {
             Logger.getLogger(BuildDB.class.getName()).log(Level.SEVERE, null, e);
         } finally {
